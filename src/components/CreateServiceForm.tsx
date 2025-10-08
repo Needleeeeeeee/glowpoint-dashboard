@@ -2,7 +2,6 @@
 
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState, useEffect } from "react";
 import {
   Form,
   FormControl,
@@ -23,8 +22,13 @@ import { Input } from "./ui/input";
 import { useForm } from "react-hook-form";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
-import { useActionState, startTransition } from "react";
-import { createService, createServiceCategory, getAvailableSortOrders } from "@/actions";
+import {
+  useActionState,
+  startTransition,
+  useState,
+  useEffect,
+} from "react";
+import { createService, getAvailableSortOrders } from "@/actions";
 import { toast } from "sonner";
 
 const formSchema = z
@@ -71,23 +75,19 @@ const formSchema = z
       path: ["newCategory"],
     }
   )
-  .refine((data) => {
-    if (data.hasServiceCategory) {
-      return data.type && data.column && data.sortOrder;
+  .refine(
+    (data) => {
+      if (data.hasServiceCategory) {
+        return data.type && data.column && data.sortOrder;
+      }
+      return true;
+    },
+    {
+      message:
+        "Type, column, and sort order are required when service category is enabled",
+      path: ["type"],
     }
-    return true;
-  }, {
-    message: "Type, column, and sort order are required when service category is enabled",
-    path: ["type"],
-  }).refine((data) => {
-    if (data.hasServiceCategory) {
-      return data.label && data.dbCategory && data.categoryKey;
-    }
-    return true;
-  }, {
-    message: "Type, column, and sort order are required when service category is enabled",
-    path: ["type"],
-  });
+  );
 
 interface CreateServiceFormProps {
   categories: string[];
@@ -141,15 +141,6 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
 
   useEffect(() => {
     if (state?.success) {
-      toast.success(state.success);
-      form.reset();
-    } else if (state?.error) {
-      toast.error("Creation Failed", { description: state.error });
-    }
-  }, [state]);
-
-  const loadAvailableSortOrders = async () => {
-    try {
       const [leftOrders, rightOrders, fullOrders] = await Promise.all([
         getAvailableSortOrders("left"),
         getAvailableSortOrders("right"),
@@ -323,6 +314,57 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
 
           {watchedHasServiceCategory && (
             <>
+              <FormField
+                control={form.control}
+                name="label"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Label</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., Hair Services"
+                        {...field}
+                        disabled={isPending}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="dbCategory"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>DB Category</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., hair_services"
+                        {...field}
+                        disabled={isPending}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="categoryKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category Key</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., hair"
+                        {...field}
+                        disabled={isPending}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="label"

@@ -656,6 +656,13 @@ const CreateServiceSchema = z.object({
   dbCategory: z.string().optional(),
   categoryKey: z.string().optional(),
   dependsOn: z.string().optional(),
+}).refine((data) => {
+  if (data.hasServiceCategory) {
+    return data.label && data.dbCategory && data.categoryKey;
+  }
+  return true;
+}, {
+  message: "Label, DB Category, and Category Key are required when service category is enabled",
 });
 
 export async function createService(prevState: any, formData: FormData) {
@@ -693,6 +700,9 @@ export async function createService(prevState: any, formData: FormData) {
     categoryKey: formData.get("categoryKey"),
     dependsOn: formData.get("dependsOn"),
   });
+  if (validatedFields.success && validatedFields.data.category === 'other') {
+    validatedFields.data.category = formData.get('newCategory') as string;
+  }
 
   if (!validatedFields.success) {
     return {
@@ -701,7 +711,7 @@ export async function createService(prevState: any, formData: FormData) {
     };
   }
 
-  const { service, category, price, hasServiceCategory, ...categoryData } =
+  const { service, category, price, hasServiceCategory } =
     validatedFields.data;
 
   try {
@@ -725,23 +735,8 @@ export async function createService(prevState: any, formData: FormData) {
 
     // If service category is enabled, create it
     if (hasServiceCategory) {
-      const categoryFormData = new FormData();
-      categoryFormData.append("serviceId", data.id.toString());
-      categoryFormData.append("type", categoryData.type || "");
-      categoryFormData.append("column", categoryData.column || "");
-      categoryFormData.append(
-        "sortOrder",
-        categoryData.sortOrder?.toString() || ""
-      );
-      categoryFormData.append("label", categoryData.label || "");
-      categoryFormData.append("dbCategory", categoryData.dbCategory || "");
-      categoryFormData.append("categoryKey", categoryData.categoryKey || "");
-      categoryFormData.append("dependsOn", categoryData.dependsOn || "");
-
-      const categoryResult = await createServiceCategory(
-        null,
-        categoryFormData
-      );
+      formData.set("serviceId", data.id.toString());
+      const categoryResult = await createServiceCategory(null, formData);
       if (categoryResult?.error) {
         // Optionally, you could delete the service here for a full rollback
         return {
