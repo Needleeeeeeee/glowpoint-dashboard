@@ -700,9 +700,6 @@ export async function createService(prevState: any, formData: FormData) {
     categoryKey: formData.get("categoryKey"),
     dependsOn: formData.get("dependsOn"),
   });
-  if (validatedFields.success && validatedFields.data.category === 'other') {
-    validatedFields.data.category = formData.get('newCategory') as string;
-  }
 
   if (!validatedFields.success) {
     return {
@@ -711,8 +708,11 @@ export async function createService(prevState: any, formData: FormData) {
     };
   }
 
-  const { service, category, price, hasServiceCategory } =
-    validatedFields.data;
+  let { service, category, price, hasServiceCategory, ...categoryData } = validatedFields.data;
+
+  if (category === 'other') {
+    category = formData.get('newCategory') as string;
+  }
 
   try {
     // Insert the service and return the created record
@@ -735,12 +735,32 @@ export async function createService(prevState: any, formData: FormData) {
 
     // If service category is enabled, create it
     if (hasServiceCategory) {
-      formData.set("serviceId", data.id.toString());
-      const categoryResult = await createServiceCategory(null, formData);
-      if (categoryResult?.error) {
-        // Optionally, you could delete the service here for a full rollback
+      const { type, column, sortOrder, label, dbCategory, categoryKey, dependsOn } = categoryData;
+
+      if (!type || !column || !label || !dbCategory || !categoryKey || sortOrder === undefined) {
         return {
-          error: `Service was created, but category creation failed: ${categoryResult.error}`,
+          error: "Service was created, but category creation failed: Missing required category fields.",
+        };
+      }
+
+      const { error: categoryError } = await supabase
+        .from("ServiceCategories")
+        .upsert({
+          type,
+          column,
+          sort_order: sortOrder,
+          label,
+          db_category: dbCategory,
+          category_key: categoryKey,
+          depends_on: dependsOn || null,
+        }, { onConflict: 'db_category' });
+
+      if (categoryError) {
+        console.error("Error creating service category:", categoryError);
+        // Rollback service creation
+        await supabase.from("Services").delete().eq("id", data.id);
+        return {
+          error: `Service creation failed: Could not create service category. ${categoryError.message}`,
         };
       }
     }
@@ -856,17 +876,25 @@ export const deleteServices = async (serviceIds: number[]) => {
     }
 
     // Delete from ServiceCategories first to respect foreign key constraints if any
+    const { data: servicesToDelete, error: fetchError } = await supabase
+      .from("Services")
+      .select("category")
+      .in("id", serviceIds);
+
+    if (fetchError) {
+      return { error: `Failed to fetch services for deletion: ${fetchError.message}` };
+    }
+
+    const categoriesToDelete = servicesToDelete.map(s => s.category);
+
     const { error: categoryDeleteError } = await supabase
       .from("ServiceCategories")
       .delete()
-      .in("id", serviceIds);
+      .in("db_category", categoriesToDelete);
 
-    // We can ignore a "not found" error (code PGRST116), but other errors should be handled.
-    if (categoryDeleteError && categoryDeleteError.code !== "PGRST116") {
-      console.error("Service category delete error:", categoryDeleteError);
-      return {
-        error: `Failed to delete associated service categories: ${categoryDeleteError.message}`,
-      };
+    if (categoryDeleteError) {
+      // Log the error but don't block service deletion, as the category might not exist.
+      console.warn("Could not delete service category, it might not exist:", categoryDeleteError.message);
     }
 
     const { error: deleteError } = await supabase
@@ -1181,21 +1209,19 @@ export const unclaimAppointment = async (appointmentId: string) => {
 
 export async function createServiceCategory(
   prevState: any,
-  formData: FormData
+  categoryData: any
 ) {
   const supabase = await createClient();
 
-  const serviceId = formData.get("serviceId") as string;
-  const type = formData.get("type") as string;
-  const column = formData.get("column") as string;
-  const sortOrder = parseInt(formData.get("sortOrder") as string);
-  const label = formData.get("label") as string;
-  const dbCategory = formData.get("dbCategory") as string;
-  const categoryKey = formData.get("categoryKey") as string;
-  const dependsOn = formData.get("dependsOn") as string;
+  const { type, column, sortOrder, label, dbCategory, categoryKey, dependsOn } = categoryData;
 
   // Validate required fields
-  if (!serviceId || !type || !column || isNaN(sortOrder)) {
+  if (!type || !column || !label || !dbCategory || !categoryKey) {
+    return {
+      error: "Label, DB Category, Category Key, Type, and Column are required.",
+    };
+  }
+  if (sortOrder === undefined || isNaN(sortOrder)) {
     return {
       error: "All fields are required and sort order must be a valid number",
     };
@@ -1236,7 +1262,6 @@ export async function createServiceCategory(
 
   try {
     const insertData = {
-      service_id: parseInt(serviceId),
       type,
       column,
       sort_order: sortOrder,
@@ -1248,7 +1273,7 @@ export async function createServiceCategory(
 
     const { error: insertError } = await supabase
       .from("ServiceCategories")
-      .insert(insertData);
+      .upsert(insertData, { onConflict: 'db_category' });
 
     if (insertError) {
       return {

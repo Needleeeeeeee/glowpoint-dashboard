@@ -139,14 +139,13 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
     }
   }, [watchedColumn]);
 
-  useEffect(() => {
-    if (state?.success) {
+  const loadAvailableSortOrders = async () => {
+    try {
       const [leftOrders, rightOrders, fullOrders] = await Promise.all([
         getAvailableSortOrders("left"),
         getAvailableSortOrders("right"),
         getAvailableSortOrders("full"),
       ]);
-
       setAvailableSortOrders({
         left: leftOrders,
         right: rightOrders,
@@ -157,14 +156,24 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
     }
   };
 
+  useEffect(() => {
+    if (state?.success) {
+      toast.success(state.success);
+      form.reset();
+      loadAvailableSortOrders(); // Refresh sort orders after successful creation
+    } else if (state?.error) {
+      toast.error("Creation Failed", { description: state.error });
+    }
+  }, [state]);
+
   const updateAvailableSortOrders = async () => {
     if (!watchedColumn) return;
 
     try {
       const orders = await getAvailableSortOrders(watchedColumn);
-      setAvailableSortOrders(prev => ({
+      setAvailableSortOrders((prev) => ({
         ...prev,
-        [watchedColumn]: orders
+        [watchedColumn]: orders,
       }));
     } catch (error) {
       console.error("Error updating available sort orders:", error);
@@ -177,19 +186,20 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
     formData.append("price", String(data.price));
     formData.append("hasServiceCategory", String(data.hasServiceCategory));
 
+    // Pass all service category data if enabled
     if (data.hasServiceCategory) {
-      formData.append("type", data.type || "");
-      formData.append("column", data.column || "");
-      formData.append("sortOrder", String(data.sortOrder) || "");
-      formData.append("label", data.label || "");
-      formData.append("dbCategory", data.dbCategory || "");
-      formData.append("categoryKey", data.categoryKey || "");
-      formData.append("dependsOn", data.dependsOn || "");
+      Object.keys(data).forEach(key => {
+        const value = data[key as keyof typeof data];
+        if (value !== undefined && value !== null) {
+          formData.append(key, String(value));
+        }
+      });
     }
 
     const finalCategory =
       data.category === "other" ? data.newCategory! : data.category;
     formData.append("category", finalCategory);
+    formData.append("newCategory", data.newCategory || "");
 
     startTransition(() => {
       formAction(formData);
@@ -314,57 +324,6 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
 
           {watchedHasServiceCategory && (
             <>
-              <FormField
-                control={form.control}
-                name="label"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Label</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g., Hair Services"
-                        {...field}
-                        disabled={isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="dbCategory"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>DB Category</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g., hair_services"
-                        {...field}
-                        disabled={isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="categoryKey"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Category Key</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g., hair"
-                        {...field}
-                        disabled={isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="label"
