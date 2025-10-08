@@ -1,0 +1,2145 @@
+"use server";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { createClient } from "@/utils/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { z } from "zod";
+
+export const login = async (
+  prevState: { error: undefined | string },
+  formData: FormData
+) => {
+  const data = {
+    email: formData.get("email") as string,
+    password: formData.get("password") as string,
+  };
+
+  // Validate input
+  if (!data.email || !data.password) {
+    return { error: "Email and password are required!" };
+  }
+
+  const supabase = await createClient();
+  const { data: signInData, error } = await supabase.auth.signInWithPassword(
+    data
+  );
+
+  if (error) {
+    console.error("Supabase auth error:", error);
+    return { error: "Invalid email or password!" };
+  }
+
+  if (signInData.session) {
+    const { data: mfaData } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (mfaData?.nextLevel === "aal2" && mfaData?.currentLevel !== "aal2") {
+      // MFA is required
+      redirect("/login/verify-2fa");
+    }
+  }
+
+  // Revalidate path to ensure the new state is reflected
+  revalidatePath("/", "layout");
+  redirect("/home");
+};
+
+export const logout = async () => {
+  const supabase = await createClient();
+
+  // Sign out from Supabase
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    console.error("Supabase logout error:", error);
+  }
+
+  // Revalidate and redirect
+  revalidatePath("/", "layout");
+  redirect("/login");
+};
+
+export async function deactivateUsers(userIds: string[]) {
+  if (!userIds || userIds.length === 0) {
+    return { error: "No users selected." };
+  }
+
+  const supabase = await createClient();
+
+  const { error: profileError } = await supabase
+    .from("Profiles")
+    .update({ is_active: false })
+    .in("id", userIds);
+
+  if (profileError) {
+    console.error("Error deactivating users in Profiles:", profileError);
+    return { error: "Failed to deactivate user profiles." };
+  }
+
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+
+  // "Deactivate" users in Supabase Auth by banning them.
+  const authErrors = [];
+  for (const userId of userIds) {
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+      userId,
+      { ban_duration: "365d" } // Ban for 1 year
+    );
+    if (authError) {
+      console.error(`Error deactivating user ${userId} in Auth:`, authError);
+      authErrors.push({ userId, message: authError.message });
+    }
+  }
+
+  if (authErrors.length > 0) {
+    console.error("Errors deactivating users in Auth:", authErrors);
+    // Attempt to rollback profile changes for failed auth updates
+    const failedUserIds = authErrors.map((e) => e.userId);
+    await supabase
+      .from("Profiles")
+      .update({ is_active: true })
+      .in("id", failedUserIds);
+    return {
+      error:
+        "Failed to deactivate some users in the authentication service. Profile changes have been rolled back.",
+    };
+  }
+
+  revalidatePath("/(app)/users", "page");
+  return { success: `${userIds.length} user(s) have been deactivated.` };
+}
+
+export const updateUserProfile = async (prevState: any, formData: FormData) => {
+  const supabase = await createClient();
+
+  // Check for authenticated user and if they are an admin
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "You must be logged in to perform this action." };
+  }
+
+  const { data: adminProfile } = await supabase
+    .from("Profiles")
+    .select("isAdmin")
+    .eq("id", user.id)
+    .single();
+
+  if (!adminProfile?.isAdmin) {
+    return { error: "You do not have permission to update user profiles." };
+  }
+
+  // Get form data
+  const userIdToUpdate = formData.get("userId") as string;
+  const newUsername = formData.get("username") as string;
+  const newEmail = formData.get("email") as string;
+  const newPhone = formData.get("phone") as string;
+  const newLocation = formData.get("location") as string;
+
+  // Basic validation
+  if (!userIdToUpdate) return { error: "User ID is missing." };
+  if (!newUsername || newUsername.trim().length < 2)
+    return { error: "Username must be at least 2 characters long." };
+  if (!newEmail || !newEmail.includes("@"))
+    return { error: "Please provide a valid email address." };
+
+  // Create an admin client to update auth user
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  // Update the user in auth.users
+  const { error: authError } =
+    await supabaseAdmin.auth.admin.updateUserById(userIdToUpdate, {
+      email: newEmail,
+    });
+
+  // Update the profile in Supabase
+  const { error: profileError } = await supabase
+    .from("Profiles")
+    .update({
+      username: newUsername,
+      email: newEmail,
+      phone: newPhone,
+      location: newLocation,
+    })
+    .eq("id", userIdToUpdate);
+
+  if (authError) {
+    console.error("Supabase auth update error:", authError);
+    // Revert profile changes if auth update failed? For now, just error out.
+    return { error: `Failed to update auth user: ${authError.message}` };
+  }
+
+  if (profileError) {
+    console.error("Supabase profile update error:", profileError);
+    // Optionally, try to revert the auth email change here if possible
+    return { error: `Failed to update profile: ${profileError.message}` };
+  }
+
+  // Revalidate paths to show updated data
+  revalidatePath("/users");
+  revalidatePath(`/users/${newUsername}`);
+  revalidatePath("/", "layout"); // Revalidate layout to update navbar/sidebar
+
+  return { success: "User profile updated successfully!" };
+};
+
+export const requestPasswordReset = async (formData: FormData) => {
+  const supabase = await createClient();
+  const email = formData.get("email") as string;
+
+  if (!email) {
+    return { error: "Email is required." };
+  }
+
+  // Use the password-reset specific callback
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback/password-reset`,
+  });
+
+  if (error) {
+    console.error("Password reset error:", error);
+    redirect(
+      `/forgot-password?message=Error: Could not send password reset link.`
+    );
+  }
+
+  redirect(
+    "/forgot-password?message=Password reset link sent. Please check your email."
+  );
+};
+
+export const updateUserPassword = async (
+  prevState: any,
+  formData: FormData
+) => {
+  const supabase = await createClient();
+  const password = formData.get("password") as string;
+  const confirmPassword = formData.get("confirmPassword") as string;
+
+  if (!password || !confirmPassword) {
+    return { message: "Password and confirmation are required.", error: true };
+  }
+
+  if (password !== confirmPassword) {
+    return { message: "Passwords do not match.", error: true };
+  }
+
+  if (password.length < 6) {
+    return {
+      message: "Password must be at least 6 characters long.",
+      error: true,
+    };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    console.error("Password update error:", error);
+    return { message: `Error: ${error.message}`, error: true };
+  }
+
+  await supabase.auth.signOut({ scope: "global" });
+
+  redirect(
+    "/login?message=Password updated successfully. Please log in again."
+  );
+};
+
+export const updateUserProfileDetails = async (
+  prevState: any,
+  formData: FormData
+) => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "You must be logged in to update your profile." };
+  }
+
+  const { data: userProfile, error: profileFetchError } = await supabase
+    .from("Profiles")
+    .select("id")
+    .eq("id", user.id)
+    .single();
+
+  if (profileFetchError || !userProfile) {
+    console.error("Profile fetch error:", profileFetchError);
+    return { error: "Could not load profile data." };
+  }
+
+  const bio = formData.get("bio") as string;
+  const avatarFile = formData.get("avatar") as File;
+
+  const profileUpdateData: { bio?: string; avatar_url?: string } = {};
+
+  if (bio !== null) {
+    profileUpdateData.bio = bio;
+  }
+
+  if (avatarFile && avatarFile.size > 0) {
+    const fileExt = avatarFile.name.split(".").pop();
+    const filePath = `${user.id}/avatar.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(filePath, avatarFile, {
+        upsert: true,
+        cacheControl: "3600",
+      });
+
+    if (uploadError) {
+      console.error("Avatar upload error:", uploadError);
+      return { error: `Failed to upload avatar: ${uploadError.message}` };
+    }
+
+    const { data: urlData } = supabase.storage
+      .from("avatars")
+      .getPublicUrl(filePath);
+
+    profileUpdateData.avatar_url = urlData.publicUrl;
+  }
+
+  if (Object.keys(profileUpdateData).length === 0) {
+    return { success: "No changes to save." };
+  }
+
+  const { data: updatedProfile, error: updateError } = await supabase
+    .from("Profiles")
+    .update(profileUpdateData)
+    .eq("id", user.id)
+    .select("id, username, bio, avatar_url")
+    .single();
+
+  if (updateError) {
+    console.error("Profile update error:", updateError);
+    return { error: `Failed to update profile: ${updateError.message}` };
+  }
+
+  revalidatePath(`/users/${updatedProfile.username}`);
+  return { success: "Profile updated successfully!", data: updatedProfile };
+};
+
+export const enrollMfa = async () => {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.mfa.enroll({
+    factorType: "totp",
+  });
+
+  if (error) {
+    console.error("MFA enroll error:", error);
+    return { error: error.message };
+  }
+
+  if (!data) {
+    return { error: "Could not start MFA enrollment." };
+  }
+
+  const qrCode = data.totp.qr_code;
+  const factorId = data.id;
+
+  return { data: { qr_code: qrCode, factor_id: factorId } };
+};
+
+export const challengeAndVerifyMfa = async (
+  prevState: any,
+  formData: FormData
+) => {
+  const supabase = await createClient();
+  const factorId = formData.get("factorId") as string;
+  const code = formData.get("code") as string;
+
+  if (!factorId || !code) {
+    return { error: "Factor ID and code are required." };
+  }
+
+  const { data: challenge, error: challengeError } =
+    await supabase.auth.mfa.challenge({ factorId });
+  if (challengeError) {
+    console.error("MFA challenge error:", challengeError);
+    return { error: challengeError.message };
+  }
+
+  const { error: verifyError } = await supabase.auth.mfa.verify({
+    factorId,
+    challengeId: challenge.id,
+    code,
+  });
+
+  if (verifyError) {
+    console.error("MFA verify error:", verifyError);
+    return { error: "Invalid verification code." };
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user?.user_metadata.username) {
+    revalidatePath(`/users/${user.user_metadata.username}`);
+  }
+  return { success: "2FA enabled successfully!" };
+};
+
+export const unenrollMfa = async (formData: FormData) => {
+  const supabase = await createClient();
+  const factorId = formData.get("factorId") as string;
+
+  if (!factorId) {
+    return { error: "Factor ID is required." };
+  }
+
+  const { error } = await supabase.auth.mfa.unenroll({ factorId });
+
+  if (error) {
+    console.error("MFA unenroll error:", error);
+    return { error: error.message };
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user?.user_metadata.username) {
+    revalidatePath(`/users/${user.user_metadata.username}`);
+  }
+};
+
+export async function sendAppointmentReminders(): Promise<{
+  success: boolean;
+  sent: number;
+  errors: string[];
+}> {
+  const supabase = await createClient();
+
+  // Define the time window for reminders (e.g., 2 hours from now)
+  const now = new Date();
+  const reminderWindowStart = new Date(now.getTime() + 115 * 60 * 1000); // 1 hour 55 mins
+  const reminderWindowEnd = new Date(now.getTime() + 125 * 60 * 1000); // 2 hours 5 mins
+
+  // Query for verified appointments within the reminder window
+  // We need to filter by date first, then combine date and time for a precise range.
+  // This covers appointments for today and tomorrow (in case the window crosses midnight).
+  const today = now.toISOString().split("T")[0];
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+
+  const { data: appointments, error: fetchError } = await supabase
+    .from("Appointments")
+    .select("*")
+    .eq("status", "verified")
+    .in("Date", [today, tomorrow]);
+
+  if (fetchError) {
+    console.error("Error fetching appointments for reminders:", fetchError);
+    return { success: false, sent: 0, errors: [fetchError.message] };
+  }
+
+  const upcomingAppointments = appointments.filter((app) => {
+    const appointmentDateTime = new Date(`${app.Date}T${app.Time}`);
+    return (
+      appointmentDateTime >= reminderWindowStart &&
+      appointmentDateTime <= reminderWindowEnd
+    );
+  });
+
+  if (upcomingAppointments.length === 0) {
+    return { success: true, sent: 0, errors: [] };
+  }
+
+  const results = await Promise.all(
+    upcomingAppointments.map((app) => sendBrevoEmail("reminder", app))
+  );
+
+  const sentCount = results.filter((r) => r.success).length;
+  const errorMessages = results
+    .filter((r) => !r.success)
+    .map((r) => r.error || "Unknown email error");
+
+  return { success: errorMessages.length === 0, sent: sentCount, errors: errorMessages };
+}
+
+
+export const verifyMfaAndCompleteLogin = async (formData: FormData) => {
+  const supabase = await createClient();
+  const code = formData.get("code") as string;
+
+  if (!code) {
+    redirect("/login/verify-2fa?error=Code is required.");
+  }
+
+  const { data: factorData, error: factorError } =
+    await supabase.auth.mfa.listFactors();
+  if (factorError) {
+    redirect(`/login/verify-2fa?error=${factorError.message}`);
+  }
+
+  const totpFactor = factorData?.all.find(
+    (f) => f.factor_type === "totp" && f.status === "verified"
+  );
+  if (!totpFactor) {
+    redirect(
+      "/login?error=No verified 2FA method found. Please contact support."
+    );
+  }
+
+  const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
+    factorId: totpFactor.id,
+    code,
+  });
+
+  if (verifyError) {
+    redirect(`/login/verify-2fa?error=Invalid code. Please try again.`);
+  }
+
+  revalidatePath("/", "layout");
+  redirect("/home");
+};
+
+export const linkGoogleAccount = async () => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "You must be logged in to link an account." };
+  }
+
+  const { data, error } = await supabase.auth.linkIdentity({
+    provider: "google",
+    options: {
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/users/${user.user_metadata.username}`,
+    },
+  });
+
+  if (error) {
+    console.error("Google link error:", error);
+    return { error: "Could not link Google account." };
+  }
+
+  if (data.url) {
+    redirect(data.url);
+  }
+};
+
+export const signInWithGoogle = async () => {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/home`,
+    },
+  });
+
+  if (error) {
+    console.error("Google sign-in error:", error);
+    return redirect("/login?message=Could not authenticate with Google");
+  }
+
+  if (data.url) {
+    // Redirect the user to the Google authentication page.
+    // This should be a server-side redirect.
+    redirect(data.url);
+  }
+};
+
+export const createUserProfile = async (prevState: any, formData: FormData) => {
+  const supabase = await createClient();
+
+  // Check for authenticated user and if they are an admin
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "You must be logged in to perform this action." };
+  }
+
+  const { data: adminProfile } = await supabase
+    .from("Profiles")
+    .select("isAdmin")
+    .eq("id", user.id)
+    .single();
+
+  if (!adminProfile?.isAdmin) {
+    return { error: "You do not have permission to create users." };
+  }
+
+  // Get form data
+  const email = formData.get("email") as string;
+  const password = formData.get("password") as string;
+  const username = formData.get("username") as string;
+  const phone = formData.get("phone") as string;
+  const location = formData.get("location") as string;
+  const isAdmin = formData.get("isAdmin") === "on";
+
+  // Basic validation
+  if (!email || !email.includes("@"))
+    return { error: "Please provide a valid email address." };
+  if (!password || password.length < 6)
+    return { error: "Password must be at least 6 characters long." };
+  if (!username || username.trim().length < 2)
+    return { error: "Username must be at least 2 characters long." };
+
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  );
+
+  // Create user in Supabase Auth
+  const { data: authData, error: authError } =
+    await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+    });
+
+  if (authError) {
+    console.error("Supabase auth create error:", authError);
+    return { error: `Failed to create auth user: ${authError.message}` };
+  }
+
+  if (!authData.user) {
+    return { error: "Failed to create user." };
+  }
+
+  // Insert profile in 'Profiles' table
+  const { error: profileError } = await supabaseAdmin.from("Profiles").insert({
+    id: authData.user.id,
+    email: email,
+    username: username,
+    phone: phone,
+    location: location,
+    isAdmin: isAdmin,
+  });
+
+  if (profileError) {
+    console.error("Supabase profile insert error:", profileError);
+    await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+    return { error: `Failed to create profile: ${profileError.message}` };
+  }
+
+  revalidatePath("/users");
+
+  return { success: "User created successfully!" };
+};
+
+const CreateServiceSchema = z.object({
+  service: z
+    .string()
+    .min(2, { message: "Service name must be at least 2 characters." }),
+  price: z.coerce
+    .number()
+    .min(0, { message: "Price must be a positive number." }),
+  category: z
+    .string()
+    .min(2, { message: "Category must be at least 2 characters." }),
+  hasServiceCategory: z.boolean(),
+  type: z.string().optional(),
+  column: z.string().optional(),
+  sortOrder: z.coerce.number().optional(),
+  label: z.string().optional(),
+  dbCategory: z.string().optional(),
+  categoryKey: z.string().optional(),
+  dependsOn: z.string().optional(),
+});
+
+export async function createService(prevState: any, formData: FormData) {
+  const supabase = await createClient();
+
+  // Check for authenticated user and if they are an admin
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "You must be logged in to perform this action." };
+  }
+
+  const { data: adminProfile } = await supabase
+    .from("Profiles")
+    .select("isAdmin")
+    .eq("id", user.id)
+    .single();
+
+  if (!adminProfile?.isAdmin) {
+    return { error: "You do not have permission to create services." };
+  }
+
+  const validatedFields = CreateServiceSchema.safeParse({
+    service: formData.get("service"),
+    price: formData.get("price"),
+    category: formData.get("category"),
+    hasServiceCategory: formData.get("hasServiceCategory") === "true",
+    type: formData.get("type"),
+    column: formData.get("column"),
+    sortOrder: formData.get("sortOrder"),
+    label: formData.get("label"),
+    dbCategory: formData.get("dbCategory"),
+    categoryKey: formData.get("categoryKey"),
+    dependsOn: formData.get("dependsOn"),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      error:
+        "Invalid form data: " + validatedFields.error.flatten().fieldErrors,
+    };
+  }
+
+  const { service, category, price, hasServiceCategory, ...categoryData } =
+    validatedFields.data;
+
+  try {
+    // Insert the service and return the created record
+    const { data, error } = await supabase
+      .from("Services")
+      .insert({
+        service: service.trim(),
+        category: category.trim(),
+        price: price,
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      console.error("Error creating service:", error);
+      return {
+        error: "Failed to create service: " + error.message,
+      };
+    }
+
+    // If service category is enabled, create it
+    if (hasServiceCategory) {
+      const categoryFormData = new FormData();
+      categoryFormData.append("serviceId", data.id.toString());
+      categoryFormData.append("type", categoryData.type || "");
+      categoryFormData.append("column", categoryData.column || "");
+      categoryFormData.append(
+        "sortOrder",
+        categoryData.sortOrder?.toString() || ""
+      );
+      categoryFormData.append("label", categoryData.label || "");
+      categoryFormData.append("dbCategory", categoryData.dbCategory || "");
+      categoryFormData.append("categoryKey", categoryData.categoryKey || "");
+      categoryFormData.append("dependsOn", categoryData.dependsOn || "");
+
+      const categoryResult = await createServiceCategory(
+        null,
+        categoryFormData
+      );
+      if (categoryResult?.error) {
+        // Optionally, you could delete the service here for a full rollback
+        return {
+          error: `Service was created, but category creation failed: ${categoryResult.error}`,
+        };
+      }
+    }
+
+    revalidatePath("/services");
+    return {
+      success: "Service created successfully",
+    };
+  } catch (error) {
+    console.error("Unexpected error:", error);
+    return {
+      error: "An unexpected error occurred",
+    };
+  }
+}
+
+const UpdateServiceSchema = z.object({
+  id: z.coerce.number(),
+  service: z
+    .string()
+    .min(2, { message: "Service name must be at least 2 characters." }),
+  price: z.coerce
+    .number()
+    .min(0, { message: "Price must be a positive number." }),
+  category: z
+    .string()
+    .min(2, { message: "Category must be at least 2 characters." }),
+});
+
+export const updateService = async (prevState: any, formData: FormData) => {
+  const supabase = await createClient();
+
+  // Check for authenticated user and if they are an admin
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "You must be logged in to perform this action." };
+  }
+
+  const { data: adminProfile } = await supabase
+    .from("Profiles")
+    .select("isAdmin")
+    .eq("id", user.id)
+    .single();
+
+  if (!adminProfile?.isAdmin) {
+    return { error: "You do not have permission to update services." };
+  }
+
+  const validatedFields = UpdateServiceSchema.safeParse({
+    id: formData.get("id"),
+    service: formData.get("service"),
+    price: formData.get("price"),
+    category: formData.get("category"),
+  });
+
+  if (!validatedFields.success) {
+    return { error: "Invalid form data. Please check your inputs." };
+  }
+
+  const { id, service, price, category } = validatedFields.data;
+
+  // Update service in 'Services' table
+  const { error: serviceError } = await supabase
+    .from("Services")
+    .update({ service, price, category })
+    .eq("id", id);
+
+  if (serviceError) {
+    console.error("Supabase service update error:", serviceError);
+    return { error: `Failed to update service: ${serviceError.message}` };
+  }
+
+  revalidatePath("/services");
+  return { success: "Service updated successfully!" };
+};
+
+export const deleteServices = async (serviceIds: number[]) => {
+  try {
+    if (!serviceIds || serviceIds.length === 0) {
+      return { error: "No service IDs provided." };
+    }
+
+    const supabase = await createClient();
+
+    // Get current user and verify admin status
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      console.error("Authentication error:", userError);
+      return { error: "Authentication required. Please log in." };
+    }
+
+    // Check admin privileges
+    const { data: profile, error: profileError } = await supabase
+      .from("Profiles")
+      .select("isAdmin")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError) {
+      console.error("Profile fetch error:", profileError);
+      return { error: "Failed to verify user permissions." };
+    }
+
+    if (!profile?.isAdmin) {
+      return { error: "Insufficient permissions. Admin access required." };
+    }
+
+    // Delete from ServiceCategories first to respect foreign key constraints if any
+    const { error: categoryDeleteError } = await supabase
+      .from("ServiceCategories")
+      .delete()
+      .in("id", serviceIds);
+
+    // We can ignore a "not found" error (code PGRST116), but other errors should be handled.
+    if (categoryDeleteError && categoryDeleteError.code !== "PGRST116") {
+      console.error("Service category delete error:", categoryDeleteError);
+      return {
+        error: `Failed to delete associated service categories: ${categoryDeleteError.message}`,
+      };
+    }
+
+    const { error: deleteError } = await supabase
+      .from("Services")
+      .delete()
+      .in("id", serviceIds);
+
+    if (deleteError) {
+      console.error("Delete error:", deleteError);
+      return { error: `Delete failed: ${deleteError.message}` };
+    }
+
+    revalidatePath("/services");
+
+    return { success: `${serviceIds.length} service(s) deleted successfully.` };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error occurred";
+    return { error: `Server error: ${errorMessage}` };
+  }
+};
+
+export const deletePayments = async (paymentIds: string[]) => {
+  try {
+    if (!paymentIds || paymentIds.length === 0) {
+      return { error: "No payment IDs provided." };
+    }
+
+    const supabase = await createClient();
+
+    // Get current user and verify admin status
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      console.error("Authentication error:", userError);
+      return { error: "Authentication required. Please log in." };
+    }
+
+    // Check admin privileges
+    const { data: profile, error: profileError } = await supabase
+      .from("Profiles")
+      .select("isAdmin")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError) {
+      console.error("Profile fetch error:", profileError);
+      return { error: "Failed to verify user permissions." };
+    }
+
+    if (!profile?.isAdmin) {
+      return { error: "Insufficient permissions. Admin access required." };
+    }
+
+    // Perform the delete operation
+    const { error: deleteError } = await supabase
+      .from("Appointments")
+      .delete()
+      .in("id", paymentIds);
+
+    if (deleteError) {
+      console.error("Delete error:", deleteError);
+      return { error: `Delete failed: ${deleteError.message}` };
+    }
+
+    revalidatePath("/payments");
+
+    return { success: `${paymentIds.length} payment(s) deleted successfully.` };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error occurred";
+    return { error: `Server error: ${errorMessage}` };
+  }
+};
+
+export const updatePaymentStatus = async (
+  appointmentId: string,
+  newStatus: string
+) => {
+  try {
+    const supabase = await createClient();
+
+    // Get current user and verify admin status
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      console.error("Authentication error:", userError);
+      return { error: "Authentication required. Please log in." };
+    }
+
+    // Check admin privileges
+    const { data: profile, error: profileError } = await supabase
+      .from("Profiles")
+      .select("isAdmin")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError) {
+      console.error("Profile fetch error:", profileError);
+      return { error: "Failed to verify user permissions." };
+    }
+
+    if (!profile?.isAdmin) {
+      console.log("User is not admin:", profile);
+      return { error: "Insufficient permissions. Admin access required." };
+    }
+
+    // Validate and sanitize inputs
+    if (!appointmentId) {
+      return { error: "Appointment ID is required." };
+    }
+
+    const trimmedId = appointmentId.toString().trim();
+
+    // Handle both string and numeric IDs
+    let queryId: string | number = trimmedId;
+
+    // Parse as number if it looks numeric
+    if (/^\d+$/.test(trimmedId)) {
+      queryId = parseInt(trimmedId, 10);
+    }
+
+    // Validate status
+    const validStatuses = ["pending", "success", "failed"];
+    if (!validStatuses.includes(newStatus)) {
+      return {
+        error: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
+      };
+    }
+
+    // Check if appointment exists first
+    let { data: existingAppointment, error: fetchError } = await supabase
+      .from("Appointments")
+      .select("*")
+      .eq("id", queryId)
+      .maybeSingle(); // Use maybeSingle to avoid errors if no rows found
+
+    if (fetchError) {
+      console.error("Database fetch error:", fetchError);
+      return { error: `Database error: ${fetchError.message}` };
+    }
+
+    if (!existingAppointment) {
+      // Try alternative approaches if the appointment wasn't found
+
+      const { data: stringMatch, error: stringError } = await supabase
+        .from("Appointments")
+        .select("*")
+        .eq("id", trimmedId)
+        .maybeSingle();
+
+      if (!stringMatch) {
+        // List all appointments for debugging
+        const { data: allAppointments } = await supabase
+          .from("Appointments")
+          .select("id")
+          .limit(10);
+
+        return {
+          error: `Appointment with ID "${appointmentId}" not found in database.`,
+        };
+      }
+
+      // Use the found appointment
+      existingAppointment = stringMatch;
+    }
+
+    // Check if status is already the target status
+    if (existingAppointment.status === newStatus) {
+      return { success: `Status is already "${newStatus}".` };
+    }
+
+    // Perform the update
+    const { data: updatedData, error: updateError } = await supabase
+      .from("Appointments")
+      .update({ status: newStatus })
+      .eq("id", existingAppointment.id) // Use the ID from the found record
+      .select("*");
+
+    if (updateError) {
+      console.error("Update error:", updateError);
+      return { error: `Update failed: ${updateError.message}` };
+    }
+
+    if (!updatedData || updatedData.length === 0) {
+      console.error("Update returned no data");
+      return { error: "Update operation failed - no rows affected." };
+    }
+
+    console.log("Update successful:", updatedData);
+
+    revalidatePath("/payments");
+    revalidatePath("/");
+
+    return {
+      success: `Payment status updated successfully to "${newStatus}".`,
+      data: updatedData[0],
+    };
+  } catch (error) {
+    console.error("=== UPDATE PAYMENT STATUS ERROR ===");
+    console.error("Unexpected error:", error);
+
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error occurred";
+    return { error: `Server error: ${errorMessage}` };
+  }
+};
+
+export const claimAppointment = async (
+  appointmentId: string,
+  employeeId: string,
+  service: string
+) => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user || user.id !== employeeId) {
+    return {
+      error: "Unauthorized: You can only claim appointments for yourself.",
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("Appointments")
+    .update({
+      claimed_by_id: employeeId,
+      claimed_service: service,
+      status: "assigned",
+    })
+    .eq("id", appointmentId)
+    .eq("status", "verified")
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error claiming appointment:", error);
+    return {
+      error: "Failed to claim appointment. It might have already been claimed.",
+    };
+  }
+
+  if (!data) {
+    return { error: "Appointment not found or could not be claimed." };
+  }
+
+  revalidatePath("/payments");
+  revalidatePath("/calendar");
+  return { success: "Appointment claimed." };
+};
+
+export const unclaimAppointment = async (appointmentId: string) => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Unauthorized: You must be logged in." };
+  }
+
+  // Fetch the appointment to check who claimed it
+  const { data: appointment, error: fetchError } = await supabase
+    .from("Appointments")
+    .select("claimed_by_id")
+    .eq("id", appointmentId)
+    .single();
+
+  if (fetchError || !appointment) {
+    return { error: "Appointment not found." };
+  }
+
+  // Fetch the current user's profile to check for admin role
+  const { data: profile } = await supabase
+    .from("Profiles")
+    .select("isAdmin")
+    .eq("id", user.id)
+    .single();
+
+  const isAdmin = profile?.isAdmin || false;
+
+  // Only the employee who claimed it or an admin can unclaim it
+  if (appointment.claimed_by_id !== user.id && !isAdmin) {
+    return { error: "Unauthorized: You cannot unclaim this appointment." };
+  }
+
+  const { error } = await supabase
+    .from("Appointments")
+    .update({
+      claimed_by_id: null,
+      claimed_service: null,
+      status: "pending",
+    })
+    .eq("id", appointmentId);
+
+  if (error) {
+    console.error("Error unclaiming appointment:", error);
+    return { error: "Failed to unclaim appointment." };
+  }
+
+  revalidatePath("/payments");
+  revalidatePath("/calendar");
+  return { success: "Appointment unclaimed." };
+};
+
+export async function createServiceCategory(
+  prevState: any,
+  formData: FormData
+) {
+  const supabase = await createClient();
+
+  const serviceId = formData.get("serviceId") as string;
+  const type = formData.get("type") as string;
+  const column = formData.get("column") as string;
+  const sortOrder = parseInt(formData.get("sortOrder") as string);
+  const label = formData.get("label") as string;
+  const dbCategory = formData.get("dbCategory") as string;
+  const categoryKey = formData.get("categoryKey") as string;
+  const dependsOn = formData.get("dependsOn") as string;
+
+  // Validate required fields
+  if (!serviceId || !type || !column || isNaN(sortOrder)) {
+    return {
+      error: "All fields are required and sort order must be a valid number",
+    };
+  }
+
+  // Validate type
+  if (!["ExclusiveDropdown", "AddOnDropdown"].includes(type)) {
+    return {
+      error: "Type must be either ExclusiveDropdown or AddOnDropdown",
+    };
+  }
+
+  // Validate column
+  if (!["left", "right", "full"].includes(column)) {
+    return {
+      error: "Column must be left, right, or full",
+    };
+  }
+
+  // Check if sort order is unique within the column
+  const { data: existingSortOrders, error: sortOrderError } = await supabase
+    .from("ServiceCategories")
+    .select("sort_order")
+    .eq("column", column)
+    .eq("sort_order", sortOrder);
+
+  if (sortOrderError) {
+    return {
+      error: "Failed to validate sort order: " + sortOrderError.message,
+    };
+  }
+
+  if (existingSortOrders && existingSortOrders.length > 0) {
+    return {
+      error: `Sort order ${sortOrder} is already taken in the ${column} column`,
+    };
+  }
+
+  try {
+    const insertData = {
+      service_id: parseInt(serviceId),
+      type,
+      column,
+      sort_order: sortOrder,
+      label,
+      db_category: dbCategory,
+      category_key: categoryKey,
+      depends_on: dependsOn || null,
+    };
+
+    const { error: insertError } = await supabase
+      .from("ServiceCategories")
+      .insert(insertData);
+
+    if (insertError) {
+      return {
+        error: "Failed to create service category: " + insertError.message,
+      };
+    }
+
+    revalidatePath("/services");
+    return {
+      success: "Service category created successfully",
+    };
+  } catch (error) {
+    return {
+      error: "An unexpected error occurred: " + (error as Error).message,
+    };
+  }
+}
+
+export async function updateServiceCategory(
+  prevState: any,
+  formData: FormData
+) {
+  const supabase = await createClient();
+
+  const serviceId = formData.get("serviceId") as string;
+  const type = formData.get("type") as string;
+  const column = formData.get("column") as string;
+  const sortOrder = parseInt(formData.get("sortOrder") as string);
+  const dependsOn = formData.get("dependsOn") as string;
+
+  // Validate required fields
+  if (!serviceId || !type || !column || isNaN(sortOrder)) {
+    return {
+      error: "All fields are required and sort order must be a valid number",
+    };
+  }
+
+  // Validate type
+  if (!["ExclusiveDropdown", "AddOnDropdown"].includes(type)) {
+    return {
+      error: "Type must be either ExclusiveDropdown or AddOnDropdown",
+    };
+  }
+
+  // Validate column
+  if (!["left", "right", "full"].includes(column)) {
+    return {
+      error: "Column must be left, right, or full",
+    };
+  }
+
+  // Check if sort order is unique within the column, excluding the current record
+  const { data: existingSortOrders, error: sortOrderError } = await supabase
+    .from("ServiceCategories")
+    .select("sort_order, id")
+    .eq("column", column)
+    .eq("sort_order", sortOrder)
+    .neq("id", serviceId);
+
+  if (sortOrderError) {
+    return {
+      error: "Failed to validate sort order: " + sortOrderError.message,
+    };
+  }
+
+  if (existingSortOrders && existingSortOrders.length > 0) {
+    return {
+      error: `Sort order ${sortOrder} is already taken in the ${column} column`,
+    };
+  }
+
+  try {
+    const updateData = {
+      type,
+      column,
+      sort_order: sortOrder,
+      depends_on: dependsOn || null,
+    };
+
+    const { error: updateError } = await supabase
+      .from("ServiceCategories")
+      .update(updateData)
+      .eq("id", serviceId);
+
+    if (updateError) {
+      return {
+        error: "Failed to update service category: " + updateError.message,
+      };
+    }
+
+    revalidatePath("/services");
+    return {
+      success: "Service category updated successfully",
+    };
+  } catch (error) {
+    return {
+      error: "An unexpected error occurred: " + (error as Error).message,
+    };
+  }
+}
+
+export async function deleteServiceCategory(serviceId: number) {
+  const supabase = await createClient();
+  try {
+    const { error } = await supabase
+      .from("ServiceCategories")
+      .delete()
+      .eq("id", serviceId);
+
+    if (error) {
+      return { error: "Failed to delete service category: " + error.message };
+    }
+
+    revalidatePath("/services");
+    return {
+      success: "Service category deleted successfully.",
+    };
+  } catch (error) {
+    return {
+      error: "An unexpected error occurred: " + (error as Error).message,
+    };
+  }
+}
+
+// Helper function to get available sort orders for a column
+export async function getAvailableSortOrders(
+  column: string
+): Promise<number[]> {
+  const supabase = await createClient();
+
+  const { data: usedOrders, error } = await supabase
+    .from("ServiceCategories")
+    .select("sort_order")
+    .eq("column", column);
+
+  if (error) {
+    console.error("Error fetching used sort orders:", error);
+    return [];
+  }
+
+  const usedOrdersSet = new Set(
+    usedOrders?.map((item) => item.sort_order) || []
+  );
+  const availableOrders: number[] = [];
+
+  // Generate available sort orders in increments of 10
+  for (let i = 10; i <= 100; i += 10) {
+    if (!usedOrdersSet.has(i)) {
+      availableOrders.push(i);
+    }
+  }
+
+  return availableOrders;
+}
+
+// Helper function to get service categories by service ID
+export async function getServiceCategories() {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("ServiceCategories")
+    .select("*")
+    .order("sort_order");
+
+  if (error) {
+    console.error("Error fetching service categories:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+
+export const verifyAppointment = async (appointmentId: string): Promise<{ success?: string; error?: string }> => {
+  const supabase = await createClient();
+
+  // Check if the user is an admin
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { error: 'Authentication required.' };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from('Profiles')
+    .select('isAdmin')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError || !profile?.isAdmin) {
+    return { error: 'Unauthorized: Admin access required.' };
+  }
+
+  // First, update the appointment status to 'verified'
+  const { data: updatedAppointment, error: updateError } = await supabase
+    .from('Appointments')
+    .update({ status: 'verified' })
+    .eq('id', appointmentId)
+    .select()
+    .single();
+
+  if (updateError) {
+    return { error: `Failed to update appointment: ${updateError.message}` };
+  }
+
+  // Send immediate confirmation SMS
+  const confirmationSmsMessage = getSmsContent('confirmation', updatedAppointment);
+  const smsResult = await sendSms(updatedAppointment.Phone, confirmationSmsMessage);
+
+  // Send immediate confirmation email
+  const emailResult = await sendBrevoEmail('confirmation', updatedAppointment);
+
+  // Calculate reminder time (2 hours before appointment)
+  const appointmentDateTime = new Date(`${updatedAppointment.Date}T${updatedAppointment.Time}`);
+  const reminderDateTime = new Date(appointmentDateTime.getTime() - 2 * 60 * 60 * 1000);
+
+  // Only schedule reminders if the appointment is more than 2 hours away
+  let scheduledSmsResult = { success: true };
+  let scheduledEmailResult = { success: true };
+
+  if (reminderDateTime > new Date()) {
+    // Schedule reminder SMS
+    const reminderSmsMessage = getSmsContent('reminder', updatedAppointment);
+    // Format for SMS API: "Y-m-d H:i" format
+    const smsSchedule = formatDateTimeForSMS(reminderDateTime);
+    scheduledSmsResult = await sendSms(updatedAppointment.Phone, reminderSmsMessage, smsSchedule);
+
+    // Schedule reminder email
+    scheduledEmailResult = await sendBrevoEmail('reminder', updatedAppointment, reminderDateTime.toISOString());
+  }
+
+  // Collect results
+  const results = [smsResult, emailResult, scheduledSmsResult, scheduledEmailResult];
+  const errors = results.filter(r => !r.success).map(r => r.error);
+
+  if (errors.length > 0) {
+    return { success: `Appointment verified, but some notifications failed: ${errors.join(', ')}` };
+  }
+
+  revalidatePath('/'); // Revalidate the dashboard to reflect the change
+  return { success: 'Appointment verified. Confirmation and reminders for SMS/Email have been sent/scheduled.' };
+};
+
+// Helper function to format date for SMS API
+function formatDateTimeForSMS(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+function getSmsContent(smsType: string, appointment: any) {
+  const formatDate = (dateStr: any) => {
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+  const formatTime = (timeStr: any) => {
+    return new Date(`2000-01-01T${timeStr}`).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  switch (smsType) {
+    case "confirmation":
+      return `Glowpoint: Hello ${appointment.Name}! Your appointment on ${formatDate(
+        appointment.Date
+      )} at ${formatTime(
+        appointment.Time
+      )} is confirmed! Remaining balance: P${(
+        appointment.Total || 0
+      ).toFixed(
+        2
+      )}. Please arrive on time. We look forward to seeing you!`;
+    case "reminder":
+      return `Glowpoint Reminder: Your appointment is in 2 hours at ${formatTime(
+        appointment.Time
+      )}. Please be on time. See you soon!`;
+    case "now_serving":
+      return `Glowpoint: It's your turn! Your queue number is ${
+        appointment.position
+      }. Please proceed to the counter.`;
+    default:
+      return "";
+  }
+}
+
+
+
+async function sendSms(
+  phone: string,
+  message: string,
+  schedule?: string
+): Promise<{ success: boolean; error?: string }> {
+  const apiToken = process.env.SMS_API_KEY;
+  if (!apiToken) {
+    console.error("SMS_API_KEY is not set.");
+    return { success: false, error: "SMS service is not configured." };
+  }
+
+  let phoneNumber = phone.replace(/[\s\-()]/g, ""); // Remove spaces, hyphens, parentheses
+
+  if (phoneNumber.startsWith("+63")) {
+    phoneNumber = "0" + phoneNumber.substring(3);
+  } else if (phoneNumber.startsWith("63")) {
+    phoneNumber = "0" + phoneNumber.substring(2);
+  } else if (!phoneNumber.startsWith("0")) {
+    phoneNumber = "0" + phoneNumber;
+  }
+
+  const isScheduled = !!schedule;
+  const endpoint = isScheduled
+    ? "https://sms.iprogtech.com/api/v1/message-reminders"
+    : "https://sms.iprogtech.com/api/v1/sms_messages";
+
+  const payload: {
+    api_token: string;
+    phone_number: string;
+    message: string;
+    scheduled_at?: string;
+    sms_provider?: number;
+  } = {
+    api_token: apiToken,
+    phone_number: phoneNumber,
+    message: message,
+    sms_provider: 2,
+  };
+
+  if (schedule) {
+    payload.scheduled_at = schedule;
+  }
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`SMS API error: ${response.status} - ${errorText}`);
+      return {
+        success: false,
+        error: `Failed to send SMS: ${errorText}`,
+      };
+    }
+
+    await response.json(); // Consume the JSON body to prevent memory leaks
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to send SMS:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+function getEmailContent(emailType: string, appointment: any) {
+  const formatDate = (dateStr: any) => {
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+  const formatTime = (timeStr: any) => {
+    return new Date(`2000-01-01T${timeStr}`).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+  const servicesList = Array.isArray(appointment.Services)
+    ? appointment.Services.join(", ")
+    : appointment.Services || "Not specified";
+  switch (emailType) {
+    case "confirmation":
+      return {
+        subject: "Your Appointment is Confirmed!",
+        htmlContent: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #fffbeb; padding: 20px; border-radius: 10px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #d97706; margin-bottom: 10px;">Appointment Confirmed!</h1>
+              <p style="color: #92400e; font-size: 16px;">We're excited to pamper you!</p>
+            </div>
+
+            <div style="background-color: white; padding: 25px; border-radius: 8px; border: 2px solid #fbbf24;">
+              <h2 style="color: #92400e; margin-top: 0;">Your Appointment Details</h2>
+
+              <div style="margin: 15px 0;">
+                <strong style="color: #92400e;">Name:</strong> ${
+                  appointment.Name
+                }<br>
+                <strong style="color: #92400e;">Date:</strong> ${formatDate(
+                  appointment.Date
+                )}<br>
+                <strong style="color: #92400e;">Time:</strong> ${formatTime(
+                  appointment.Time
+                )}<br>
+                <strong style="color: #92400e;">Services:</strong> ${servicesList}<br>
+                <strong style="color: #92400e;">Total:</strong> ₱${(
+                  appointment.Total || 0
+                ).toFixed(2)}
+              </div>
+            </div>
+
+            <div style="background-color: #dbeafe; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+              <h3 style="color: #1e40af; margin-top: 0;">Payment Information</h3>
+              <p style="color: #1e3a8a; margin: 5px 0;">Appointment fee (₱100) - Paid online</p>
+              <p style="color: #1e3a8a; margin: 5px 0;">Remaining balance (₱${Math.max(
+                0,
+                appointment.Total || 0
+              ).toFixed(2)}) - Pay at venue</p>
+            </div>
+
+            <div style="background-color: #ecfccb; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p style="color: #365314; margin: 0;"><strong>Location:</strong> NSCI Building, Km. 37 Pulong Buhangin, Santa Maria, Bulacan</p>
+              <p style="color: #365314; margin: 5px 0;"><strong>Contact:</strong> 09300784517</p>
+            </div>
+
+            <div style="text-align: center; margin-top: 30px;">
+              <p style="color: #92400e; font-size: 14px;">Please arrive early as to not void the appointment! .</p>
+              <p style="color: #d97706; font-weight: bold;">We can't wait to see you!</p>
+            </div>
+          </div>
+        `,
+        textContent: `Your Beauty Appointment is Confirmed!\n\nAppointment Details:\n- Name: ${
+          appointment.Name
+        }\n- Date: ${formatDate(appointment.Date)}\n- Time: ${formatTime(
+          appointment.Time
+        )}\n- Services: ${servicesList}\n- Total: ₱${(
+          appointment.Total || 0
+        ).toFixed(
+          2
+        )}\n\nPayment Information:\n- Appointment fee (₱100) - Paid online\n- Remaining balance (₱${Math.max(
+          0,
+          appointment.Total || 0
+        ).toFixed(
+          2
+        )}) - Pay at venue\n\nLocation: NSCI Building, Km. 37 Pulong Buhangin, Santa Maria, Bulacan\nContact: 09300784517\n\nPlease arrive early as to not void the appointment! .\nWe can't wait to see you!`,
+      };
+    case "reminder":
+      return {
+        subject: "Reminder: Your beauty appointment is in 2 hours!",
+        htmlContent: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #fef3c7; padding: 20px; border-radius: 10px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h1 style="color: #d97706;">Appointment Reminder</h1>
+              <p style="color: #92400e; font-size: 18px; font-weight: bold;">Your beauty session is in 2 hours!</p>
+            </div>
+
+            <div style="background-color: white; padding: 20px; border-radius: 8px; border: 2px solid #fbbf24;">
+              <h2 style="color: #92400e; margin-top: 0;">Quick Details</h2>
+              <p><strong>Today at:</strong> ${formatTime(appointment.Time)}</p>
+              <p><strong>Services:</strong> ${servicesList}</p>
+              <p><strong>Balance to pay:</strong> ₱${Math.max(
+                0,
+                appointment.Total || 0
+              ).toFixed(2)}</p>
+            </div>
+
+            <div style="background-color: #ecfccb; padding: 15px; border-radius: 8px; margin: 15px 0;">
+              <p style="color: #365314; margin: 0;"><strong>Address:</strong> NSCI Building, Km. 37 Pulong Buhangin, Santa Maria, Bulacan</p>
+              <p style="color: #365314; margin: 5px 0;"><strong>Questions?</strong> 09300784517</p>
+            </div>
+
+            <div style="text-align: center; margin-top: 20px; padding: 15px; background-color: #dbeafe; border-radius: 8px;">
+              <p style="color: #1e40af; margin: 0; font-weight: bold;">Pro Tip: After 15 minutes of being late, the appointment can be considered void, be sure to arrive on time!</p>
+            </div>
+          </div>
+        `,
+        textContent: `Appointment Reminder - Your beauty session is in 2 hours!\n\nDetails:\n- Today at: ${formatTime(
+          appointment.Time
+        )}\n- Services: ${servicesList}\n- Balance to pay: ₱${Math.max(
+          0,
+          appointment.Total || 0
+        ).toFixed(
+          2
+        )}\n\nLocation: NSCI Building, Km. 37 Pulong Buhangin, Santa Maria, Bulacan\nContact: 09300784517\n\nPro Tip: After 15 minutes of being late, the appointment can be considered void, be sure to arrive on time!`,
+      };
+    case "cancellation":
+      return {
+        subject: "Appointment Cancelled",
+        htmlContent: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h1 style="color: #dc2626;">Appointment Cancelled</h1>
+            <p>Hi ${appointment.Name},</p>
+            <p>Your appointment scheduled for ${formatDate(
+              appointment.Date
+            )} at ${formatTime(appointment.Time)} has been cancelled.</p>
+            <p>We hope to see you again soon!</p>
+          </div>
+        `,
+        textContent: `Hi ${
+          appointment.Name
+        },\n\nYour appointment scheduled for ${formatDate(
+          appointment.Date
+        )} at ${formatTime(
+          appointment.Time
+        )} has been cancelled.\n\nWe hope to see you again soon!`,
+      };
+    case "reschedule":
+      return {
+        subject: "Appointment Rescheduled",
+        htmlContent: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h1 style="color: #d97706;">Appointment Rescheduled</h1>
+            <p>Hi ${appointment.Name},</p>
+            <p>Your appointment has been rescheduled to ${formatDate(
+              appointment.Date
+            )} at ${formatTime(appointment.Time)}.</p>
+            <p>We look forward to seeing you!</p>
+          </div>
+        `,
+        textContent: `Hi ${
+          appointment.Name
+        },\n\nYour appointment has been rescheduled to ${formatDate(
+          appointment.Date
+        )} at ${formatTime(
+          appointment.Time
+        )}.\n\nWe look forward to seeing you!`,
+      };
+    case "now_serving":
+      return {
+        subject: "It's Your Turn at Glowpoint!",
+        htmlContent: `<p>Hi ${appointment.Name}, it's your turn to be served! Please proceed to the counter. Your queue number is ${appointment.position}.</p>`,
+        textContent: `Hi ${appointment.Name}, it's your turn to be served! Please proceed to the counter. Your queue number is ${appointment.position}.`,
+      };
+    default:
+      throw new Error(`Unknown email type: ${emailType}`);
+  }
+}
+
+async function sendBrevoEmail(
+  emailType: string,
+  appointment: any,
+  scheduleAt?: string
+): Promise<{ success: boolean; error?: string; messageId?: string }> {
+  const brevoApiKey = process.env.BREVO_API_KEY;
+
+  if (!brevoApiKey) {
+    return { success: false, error: "Brevo API key not configured." };
+  }
+
+  const emailContent = getEmailContent(emailType, appointment);
+
+  const emailData = {
+    to: [{ email: appointment.Email, name: appointment.Name }],
+    sender: {
+      name: "Elaiza G. Beauty Lounge",
+      email: "glowpointcapstone@gmail.com",
+    },
+    subject: emailContent.subject,
+    htmlContent: emailContent.htmlContent,
+    textContent: emailContent.textContent
+  };
+
+  if (scheduleAt) {
+    (emailData as any).scheduledAt = scheduleAt;
+  }
+
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "api-key": brevoApiKey,
+      },
+      body: JSON.stringify(emailData),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return {
+        success: false,
+        error: `Brevo API error: ${response.status} - ${errorText}`,
+      };
+    }
+
+    const result = await response.json();
+    return { success: true, messageId: result.messageId };
+  } catch (error: any) {
+    return { success: false, error: `Failed to send email: ${error.message}` };
+  }
+}
+
+interface ActionResult<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+export interface QueueEntry {
+  id: number;
+  user_id: string;
+  position: number;
+  estimated_wait_time: number;
+  qr_code: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  email: string,
+  phone: string,
+}
+
+export interface QueueSettings {
+  id: number;
+  current_serving: number;
+  is_active: boolean;
+  last_reset: string;
+  updated_at: string;
+}
+// Get current queue state
+export const getAdminQueueState = async (): Promise<
+  ActionResult<{
+    queue: QueueEntry[];
+    currentServing: number;
+  }>
+> => {
+  try {
+    const supabase = await createClient();
+    const [queueResponse, settingsResponse] = await Promise.all([
+      supabase
+        .from("queue_entries")
+        .select("*")
+        .eq("is_active", true)
+        .order("position", { ascending: true }),
+      supabase.from("queue_settings").select("*").eq("id", 1).single(),
+    ]);
+
+    if (queueResponse.error) throw queueResponse.error;
+    if (settingsResponse.error) throw settingsResponse.error;
+
+    return {
+      success: true,
+      data: {
+        queue: queueResponse.data || [],
+        currentServing: settingsResponse.data?.current_serving || 0,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error fetching queue state:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
+
+export const advanceQueue = async (): Promise<
+  ActionResult<{ currentServing: number }>
+> => {
+  try {
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    // Get current settings
+    const { data: settings, error: settingsError } = await supabaseAdmin
+      .from("queue_settings")
+      .select("current_serving")
+      .eq("id", 1)
+      .single();
+
+    if (settingsError) throw settingsError;
+
+    // Find the user to be served (position 1)
+    const { data: userToServe, error: userToServeError } = await supabaseAdmin
+      .from("queue_entries")
+      .select("*")
+      .eq("is_active", true)
+      .eq("position", 1)
+      .single();
+
+    if (userToServeError && userToServeError.code !== "PGRST116") {
+      throw userToServeError;
+    }
+
+    if (userToServe) {
+      // Fetch the profile separately using the user_id
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from("Profiles")
+        .select("username")
+        .eq("id", userToServe.user_id)
+        .single();
+
+      if (profileError) {
+        // Log the error but don't block the queue advancement
+        console.error("Error fetching profile for notification:", profileError);
+      }
+
+      const appointmentDataForNotif = {
+        Name: profile?.username || "Valued Customer",
+        Email: userToServe.email,
+        Phone: userToServe.phone,
+        position: userToServe.position,
+      };
+
+      // Send notifications
+      if (userToServe.email) {
+        await sendBrevoEmail("now_serving", appointmentDataForNotif);
+      }
+      if (userToServe.phone) {
+        await sendSms(
+          userToServe.phone,
+          getSmsContent("now_serving", appointmentDataForNotif)
+        );
+      }
+
+      // Deactivate the served user
+      const { error: deactivateError } = await supabaseAdmin
+        .from("queue_entries")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("id", userToServe.id);
+
+      if (deactivateError) throw deactivateError;
+    }
+
+    const newCurrentServing = (settings.current_serving || 0) + 1;
+
+    // Update current serving number
+    const { error: updateError } = await supabaseAdmin
+      .from("queue_settings")
+      .update({
+        current_serving: newCurrentServing,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", 1);
+
+    if (updateError) throw updateError;
+
+    // Get all active queue entries and update their positions
+    const { data: activeQueue, error: queueError } = await supabaseAdmin
+      .from("queue_entries")
+      .select("*")
+      .eq("is_active", true)
+      .order("position");
+
+    if (queueError) throw queueError;
+
+    // Update positions and wait times for remaining entries
+    // Filter out the user who was just served, if they are still in the list
+    const remainingQueue = activeQueue.filter(entry => entry.id !== userToServe?.id);
+
+    if (remainingQueue.length > 0) {
+      const updates = remainingQueue.map((entry, index) => ({
+        id: entry.id,
+        user_id: entry.user_id, // Preserve the user_id
+        qr_code: entry.qr_code,
+        position: index + 1,
+        estimated_wait_time: Math.max(0, (index + 1) * 20),
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { error: batchError } = await supabaseAdmin
+        .from("queue_entries")
+        .upsert(updates);
+
+      if (batchError) throw batchError;
+    }
+
+    return {
+      success: true,
+      data: { currentServing: newCurrentServing },
+    };
+  } catch (error: any) {
+    console.error("Error advancing queue:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
+
+// Reset queue (end of day)
+export const resetQueue = async (): Promise<
+  ActionResult<{ message: string }>
+> => {
+  try {
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    // Deactivate all current queue entries and reset serving number
+    const [deactivateResult, resetSettingsResult] = await Promise.all([
+      supabaseAdmin
+        .from("queue_entries")
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("is_active", true),
+      supabaseAdmin
+        .from("queue_settings")
+        .update({
+          current_serving: 0,
+          last_reset: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", 1),
+    ]);
+
+    if (deactivateResult.error) throw deactivateResult.error;
+    if (resetSettingsResult.error) throw resetSettingsResult.error;
+
+    return {
+      success: true,
+      data: { message: "Queue reset successfully" },
+    };
+  } catch (error: any) {
+    console.error("Error resetting queue:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
+
+// Get queue statistics
+export const getQueueStats = async (): Promise<
+  ActionResult<{
+    totalToday: number;
+    averageWaitTime: number;
+    currentQueueLength: number;
+  }>
+> => {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const supabase = await createClient();
+    const [totalTodayResult, activeQueueResult] = await Promise.all([
+      supabase
+        .from("queue_entries")
+        .select("id")
+        .gte("created_at", `${today}T00:00:00.000Z`)
+        .lte("created_at", `${today}T23:59:59.999Z`),
+      supabase
+        .from("queue_entries")
+        .select("estimated_wait_time")
+        .eq("is_active", true),
+    ]);
+
+    if (totalTodayResult.error) throw totalTodayResult.error;
+    if (activeQueueResult.error) throw activeQueueResult.error;
+
+    const totalToday = totalTodayResult.data?.length || 0;
+    const activeQueue = activeQueueResult.data || [];
+    const currentQueueLength = activeQueue.length;
+    const averageWaitTime =
+      activeQueue.length > 0
+        ? Math.round(
+            activeQueue.reduce(
+              (sum, entry) => sum + entry.estimated_wait_time,
+              0
+            ) / activeQueue.length
+          )
+        : 0;
+
+    return {
+      success: true,
+      data: {
+        totalToday,
+        averageWaitTime,
+        currentQueueLength,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error fetching queue stats:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
