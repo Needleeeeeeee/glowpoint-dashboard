@@ -22,6 +22,7 @@ import {
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
+import { XCircle, Search } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -29,12 +30,16 @@ import {
   CardTitle,
   CardDescription,
 } from "./ui/card";
+import { Input } from "./ui/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { verifyAppointment as verifyAppointmentAction } from "@/actions";
+import {
+  verifyAppointment as verifyAppointmentAction,
+  rejectAppointment as rejectAppointmentAction,
+} from "@/actions";
 
 interface Appointment {
   id: string;
@@ -57,9 +62,13 @@ export function AppointmentVerification({
 }) {
   const [appointments, setAppointments] =
     useState<Appointment[]>(initialAppointments);
+  const [filteredAppointments, setFilteredAppointments] =
+    useState<Appointment[]>(initialAppointments);
   const [isPending, startTransition] = useTransition();
   const [verifying, setVerifying] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const supabase = createClient();
 
@@ -154,6 +163,22 @@ export function AppointmentVerification({
     };
   }, [fetchAppointments, supabase]);
 
+  useEffect(() => {
+    const lowercasedQuery = searchQuery.toLowerCase();
+    const filtered = appointments.filter((appointment) => {
+      const customerName = appointment.Name?.toLowerCase() || "";
+      const email = appointment.Email?.toLowerCase() || "";
+      const phone = appointment.Phone?.toLowerCase() || "";
+
+      return (
+        customerName.includes(lowercasedQuery) ||
+        email.includes(lowercasedQuery) ||
+        phone.includes(lowercasedQuery)
+      );
+    });
+    setFilteredAppointments(filtered);
+  }, [searchQuery, appointments]);
+
   const sendConfirmationEmail = async (appointment: Appointment) => {
     try {
       const response = await fetch("/api/send-transaction-email", {
@@ -231,6 +256,21 @@ export function AppointmentVerification({
     });
   };
 
+  const rejectAppointment = async (appointmentId: string) => {
+    setRejecting(appointmentId);
+    startTransition(async () => {
+      const result = await rejectAppointmentAction(appointmentId);
+      if (result.success) {
+        toast.success(result.success);
+        setAppointments((prev) =>
+          prev.filter((app) => app.id !== appointmentId)
+        );
+      } else if (result.error) {
+        toast.error("Rejection Failed", { description: result.error });
+      }
+      setRejecting(null);
+    });
+  };
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -328,15 +368,30 @@ export function AppointmentVerification({
   return (
     <>
       <CardHeader>
-        <CardTitle className="text-lg mb-2">Appointment Verification</CardTitle>
-        <CardDescription className="text-sm mb-2">
-          Verify pending appointments and send confirmation emails.
-        </CardDescription>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div>
+            <CardTitle className="text-lg mb-2">
+              Appointment Verification
+            </CardTitle>
+            <CardDescription className="text-sm">
+              Verify pending appointments and send confirmation emails.
+            </CardDescription>
+          </div>
+          <div className="relative sm:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by customer..."
+              className="pl-8"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="p-2">
         {/* Mobile Cards View */}
         <div className="block md:hidden space-y-3 max-h-[350px] overflow-y-auto">
-          {appointments.map((appointment) => (
+          {filteredAppointments.map((appointment) => (
             <Card key={appointment.id} className="p-3">
               <div className="space-y-2">
                 {/* Customer Info */}
@@ -409,7 +464,7 @@ export function AppointmentVerification({
             </Card>
           ))}
 
-          {!isPending && appointments.length === 0 && (
+          {!isPending && filteredAppointments.length === 0 && (
             <div className="text-center py-8">
               <p className="text-muted-foreground text-sm">
                 No pending appointments found.
@@ -456,7 +511,7 @@ export function AppointmentVerification({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {appointments.map((appointment) => (
+                {filteredAppointments.map((appointment) => (
                   <TableRow
                     key={appointment.id}
                     className="h-12 hover:bg-muted/30"
@@ -497,26 +552,45 @@ export function AppointmentVerification({
                       {getStatusBadge(appointment.status)}
                     </TableCell>
                     <TableCell className="px-3 py-2 text-right">
-                      {appointment.status === "pending" && (
-                        <Button
-                          onClick={() => verifyAppointment(appointment.id)}
-                          disabled={verifying === appointment.id}
-                          size="sm"
-                          className="h-7 text-xs"
-                        >
-                          {verifying === appointment.id ? (
-                            <>
-                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                              Verifying...
-                            </>
-                          ) : (
-                            <>
-                              <Mail className="mr-1 h-3 w-3" />
-                              Verify & Send
-                            </>
-                          )}
-                        </Button>
-                      )}
+                      <div className="flex gap-2 justify-end">
+                        {appointment.status === "pending" && (
+                          <>
+                            <Button
+                              variant="destructive"
+                              onClick={() => rejectAppointment(appointment.id)}
+                              disabled={
+                                verifying === appointment.id ||
+                                rejecting === appointment.id
+                              }
+                              size="sm"
+                              className="h-7 text-xs"
+                            >
+                              {rejecting === appointment.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <XCircle className="mr-1 h-3 w-3" />
+                              )}
+                              Reject
+                            </Button>
+                            <Button
+                              onClick={() => verifyAppointment(appointment.id)}
+                              disabled={
+                                verifying === appointment.id ||
+                                rejecting === appointment.id
+                              }
+                              size="sm"
+                              className="h-7 text-xs"
+                            >
+                              {verifying === appointment.id ? (
+                                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              ) : (
+                                <Mail className="mr-1 h-3 w-3" />
+                              )}
+                              Verify
+                            </Button>
+                          </>
+                        )}
+                      </div>
                       {appointment.status === "success" && (
                         <div className="flex items-center justify-end text-green-600 text-xs">
                           <CheckCircle className="h-3 w-3 mr-1" />
@@ -529,13 +603,13 @@ export function AppointmentVerification({
               </TableBody>
             </Table>
 
-            {isPending && (
+            {isPending && filteredAppointments.length === 0 && (
               <div className="flex justify-center items-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             )}
 
-            {!isPending && appointments.length === 0 && (
+            {!isPending && filteredAppointments.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-muted-foreground text-sm">
                   No pending appointments found.

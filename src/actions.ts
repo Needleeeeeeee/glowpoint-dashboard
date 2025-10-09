@@ -733,7 +733,6 @@ export async function createService(prevState: any, formData: FormData) {
       };
     }
 
-    // If service category is enabled, create it
     if (hasServiceCategory) {
       const { type, column, sortOrder, label, dbCategory, categoryKey, dependsOn } = categoryData;
 
@@ -1519,6 +1518,50 @@ export const verifyAppointment = async (appointmentId: string): Promise<{ succes
   return { success: 'Appointment verified. Confirmation and reminders for SMS/Email have been sent/scheduled.' };
 };
 
+export const rejectAppointment = async (appointmentId: string): Promise<{ success?: string; error?: string }> => {
+  const supabase = await createClient();
+
+  // Check if the user is an admin
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { error: 'Authentication required.' };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from('Profiles')
+    .select('isAdmin')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError || !profile?.isAdmin) {
+    return { error: 'Unauthorized: Admin access required.' };
+  }
+
+  // Fetch the appointment to get details for the notification email
+  const { data: appointmentToReject, error: fetchError } = await supabase
+    .from('Appointments')
+    .select('*')
+    .eq('id', appointmentId)
+    .single();
+
+  if (fetchError || !appointmentToReject) {
+    return { error: `Could not find appointment to reject: ${fetchError?.message}` };
+  }
+
+  // Update the appointment status to 'failed'
+  const { error: updateError } = await supabase.from('Appointments').update({ status: 'failed' }).eq('id', appointmentId);
+  if (updateError) {
+    return { error: `Failed to reject appointment: ${updateError.message}` };
+  }
+
+  await sendBrevoEmail('cancellation', appointmentToReject);
+  revalidatePath('/');
+  return { success: 'Appointment has been rejected.' };
+};
+
 // Helper function to format date for SMS API
 function formatDateTimeForSMS(date: Date): string {
   const year = date.getFullYear();
@@ -1604,6 +1647,7 @@ async function sendSms(
     message: string;
     scheduled_at?: string;
     sms_provider?: number;
+    sender_name?: string;
   } = {
     api_token: apiToken,
     phone_number: phoneNumber,
@@ -1611,6 +1655,7 @@ async function sendSms(
     sms_provider: 2,
   };
 
+  payload.sender_name = "Elaiza G. Beauty";
   if (schedule) {
     payload.scheduled_at = schedule;
   }
