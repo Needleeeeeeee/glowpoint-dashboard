@@ -1,11 +1,12 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
+import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 import {  getAdminQueueState,
   advanceQueue,
   resetQueue,
   getQueueStats,
-
+  notifyNextInQueue,
   QueueEntry
 } from '../actions';
 import { subscribeToAdminQueueChanges } from '@/utils/queue';
@@ -19,6 +20,7 @@ interface QueueStats {
 export const useAdminQueue = () => {
   const [queue, setQueue] = useState<QueueEntry[]>([]);
   const [currentServing, setCurrentServing] = useState<number>(0);
+  const [isPending, startTransition] = useTransition();
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<QueueStats>({
@@ -96,6 +98,21 @@ export const useAdminQueue = () => {
     }
   };
 
+  const notifyNext = async () => {
+    startTransition(async () => {
+      setLoading(true);
+      const result = await notifyNextInQueue();
+      if (result?.error) {
+        toast.error("Failed to send notification", {
+          description: result.error,
+        });
+      } else {
+        toast.success("Queue notification sent successfully!");
+      }
+      setLoading(false);
+    });
+  };
+
   useEffect(() => {
     fetchQueue();
     fetchStats();
@@ -127,12 +144,13 @@ export const useAdminQueue = () => {
   return {
     queue: activeQueue,
     currentServing,
-    loading,
+    loading: loading || isPending,
     error,
     stats,
     advanceQueue: handleAdvanceQueue,
     resetQueue: handleResetQueue,
     fetchQueue,
-    fetchStats
+    fetchStats,
+    notifyNext,
   };
 };

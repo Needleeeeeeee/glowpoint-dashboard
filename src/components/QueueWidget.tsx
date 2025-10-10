@@ -8,6 +8,7 @@ import {
   Check,
   RefreshCw,
   PartyPopper,
+  BellRing,
   MoveUp,
   Loader2,
 } from "lucide-react";
@@ -19,6 +20,7 @@ export const QueueWidget: React.FC = () => {
     error,
     stats,
     advanceQueue,
+    notifyNext,
     resetQueue,
   } = useAdminQueue();
   const [currentTime, setCurrentTime] = useState<string | null>(null);
@@ -45,21 +47,33 @@ export const QueueWidget: React.FC = () => {
 
   return (
     <div>
-      <div className="flex justify-end items-center mb-4">
+      <div className="flex justify-between items-center mb-4 gap-2">
+        <Button
+          onClick={advanceQueue}
+          disabled={loading || queue.length === 0}
+          variant="default"
+          size="sm"
+          className="hover:cursor-pointer"
+        >
+          {loading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Play className="mr-2 h-4 w-4" />
+          )}
+          Next Customer
+        </Button>
         <Button
           onClick={resetQueue}
           disabled={loading}
           variant="destructive"
           size="sm"
-          className="hover:cursor-pointer"
         >
           <RefreshCw className="mr-2 h-4 w-4" />
           Reset Queue
         </Button>
       </div>
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg text-center">
           <div className="text-2xl font-bold text-blue-600">
             #{currentServing}
@@ -108,16 +122,10 @@ export const QueueWidget: React.FC = () => {
                 }`}
               >
                 <div className="flex items-center space-x-3">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                      index === 0
-                        ? "bg-yellow-500 text-white"
-                        : "bg-muted-foreground/20 text-muted-foreground"
-                    }`}
-                  >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${index === 0 ? "bg-yellow-500 text-white" : "bg-muted-foreground/20 text-muted-foreground"}`}>
                     #{item.position}
                   </div>
-                  <div>
+                  <div className="w-40 truncate">
                     <div className="font-medium">
                       {index === 0 && (
                         <MoveUp className="inline-block mr-1 h-4 w-4 text-muted-foreground" />
@@ -135,17 +143,20 @@ export const QueueWidget: React.FC = () => {
                 <div className="text-right">
                   {index === 0 && (
                     <Button
+                      variant="outline"
                       size="sm"
                       className="h-8"
-                      onClick={advanceQueue}
+                      onClick={notifyNext}
                       disabled={loading}
                     >
                       {loading ? (
                         <Loader2 className="mr-2 h-3 w-3 animate-spin" />
                       ) : (
-                        <Check className="mr-2 h-3 w-3" />
+                        <>
+                          <BellRing className="mr-2 h-3 w-3" />
+                          Notify
+                        </>
                       )}
-                      Serve Now
                     </Button>
                   )}
                   <div className="text-xs text-gray-400 mt-1">

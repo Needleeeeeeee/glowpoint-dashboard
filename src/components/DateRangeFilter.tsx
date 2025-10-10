@@ -78,8 +78,8 @@ export function DateRangeFilter({
 
   const [popoverOpen, setPopoverOpen] = React.useState(false);
   const [date, setDate] = React.useState<DateRange | undefined>({
-    from: fromParam ? new Date(fromParam) : new Date(),
-    to: toParam ? new Date(toParam) : addDays(new Date(),+30),
+    from: fromParam ? new Date(fromParam) : startOfMonth(new Date()),
+    to: toParam ? new Date(toParam) : endOfMonth(new Date()),
   });
 
   const handleSelect = (range: DateRange | undefined) => {

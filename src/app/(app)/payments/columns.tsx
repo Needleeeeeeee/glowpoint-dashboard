@@ -47,6 +47,7 @@ import { toast } from "sonner";
 export type Payment = {
   id: string;
   username: string;
+  email: string;
   phone: string;
   date: string;
   time: string;
@@ -366,6 +367,9 @@ export const getColumns = (isAdmin: boolean, userId: string | null): ColumnDef<P
         </Button>
       );
     },
+  }, {
+    accessorKey: "email",
+    header: "Email"
   }, {
     accessorKey: "phone",
     header: "Phone",

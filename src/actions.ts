@@ -1605,9 +1605,9 @@ function getSmsContent(smsType: string, appointment: any) {
         appointment.Time
       )}. Please be on time. See you soon!`;
     case "now_serving":
-      return `Glowpoint: It's your turn! Your queue number is ${
+      return `Glowpoint: Hi! It's your turn soon! Your queue number is ${
         appointment.position
-      }. Please proceed to the counter.`;
+      }. Please proceed to the counter in 5-10 minutes.`;
     default:
       return "";
   }
@@ -1775,88 +1775,111 @@ function getEmailContent(emailType: string, appointment: any) {
       return {
         subject: "Reminder: Your beauty appointment is in 2 hours!",
         htmlContent: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #fef3c7; padding: 20px; border-radius: 10px;">
-            <div style="text-align: center; margin-bottom: 20px;">
-              <h1 style="color: #d97706;">Appointment Reminder</h1>
-              <p style="color: #92400e; font-size: 18px; font-weight: bold;">Your beauty session is in 2 hours!</p>
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #fffbeb; padding: 20px; border-radius: 10px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #d97706; margin-bottom: 10px;">Appointment Reminder</h1>
+              <p style="color: #92400e; font-size: 16px;">Your beauty session is in 2 hours!</p>
             </div>
 
-            <div style="background-color: white; padding: 20px; border-radius: 8px; border: 2px solid #fbbf24;">
+            <div style="background-color: white; padding: 25px; border-radius: 8px; border: 2px solid #fbbf24;">
               <h2 style="color: #92400e; margin-top: 0;">Quick Details</h2>
-              <p><strong>Today at:</strong> ${formatTime(appointment.Time)}</p>
-              <p><strong>Services:</strong> ${servicesList}</p>
-              <p><strong>Balance to pay:</strong> ₱${Math.max(
-                0,
-                appointment.Total || 0
-              ).toFixed(2)}</p>
+              <div style="margin: 15px 0;">
+                <strong style="color: #92400e;">Today at:</strong> ${formatTime(
+                  appointment.Time
+                )}<br>
+                <strong style="color: #92400e;">Services:</strong> ${servicesList}<br>
+                <strong style="color: #92400e;">Balance to pay:</strong> ₱${Math.max(
+                  0,
+                  appointment.Total || 0
+                ).toFixed(2)}
+              </div>
             </div>
 
-            <div style="background-color: #ecfccb; padding: 15px; border-radius: 8px; margin: 15px 0;">
+            <div style="background-color: #ecfccb; padding: 15px; border-radius: 8px; margin: 20px 0;">
               <p style="color: #365314; margin: 0;"><strong>Address:</strong> NSCI Building, Km. 37 Pulong Buhangin, Santa Maria, Bulacan</p>
               <p style="color: #365314; margin: 5px 0;"><strong>Questions?</strong> 09300784517</p>
             </div>
 
-            <div style="text-align: center; margin-top: 20px; padding: 15px; background-color: #dbeafe; border-radius: 8px;">
-              <p style="color: #1e40af; margin: 0; font-weight: bold;">Pro Tip: After 15 minutes of being late, the appointment can be considered void, be sure to arrive on time!</p>
+            <div style="text-align: center; margin-top: 30px;">
+              <p style="color: #92400e; font-size: 14px;">Please arrive on time! After 15 minutes of being late, the appointment may be considered void.</p>
+              <p style="color: #d97706; font-weight: bold;">See you soon!</p>
             </div>
           </div>
         `,
         textContent: `Appointment Reminder - Your beauty session is in 2 hours!\n\nDetails:\n- Today at: ${formatTime(
           appointment.Time
         )}\n- Services: ${servicesList}\n- Balance to pay: ₱${Math.max(
-          0,
-          appointment.Total || 0
-        ).toFixed(
-          2
-        )}\n\nLocation: NSCI Building, Km. 37 Pulong Buhangin, Santa Maria, Bulacan\nContact: 09300784517\n\nPro Tip: After 15 minutes of being late, the appointment can be considered void, be sure to arrive on time!`,
+          0, appointment.Total || 0
+        ).toFixed(2)}\n\nLocation: NSCI Building, Km. 37 Pulong Buhangin, Santa Maria, Bulacan\nContact: 09300784517\n\nPlease arrive on time! After 15 minutes of being late, the appointment may be considered void.`,
       };
     case "cancellation":
       return {
         subject: "Appointment Cancelled",
         htmlContent: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h1 style="color: #dc2626;">Appointment Cancelled</h1>
-            <p>Hi ${appointment.Name},</p>
-            <p>Your appointment scheduled for ${formatDate(
-              appointment.Date
-            )} at ${formatTime(appointment.Time)} has been cancelled.</p>
-            <p>We hope to see you again soon!</p>
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #fffbeb; padding: 20px; border-radius: 10px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #dc2626; margin-bottom: 10px;">Appointment Cancelled</h1>
+            </div>
+            <div style="background-color: white; padding: 25px; border-radius: 8px; border: 2px solid #fca5a5;">
+              <p>Hi ${appointment.Name},</p>
+              <p>We're writing to inform you that your appointment scheduled for <strong>${formatDate(
+                appointment.Date
+              )}</strong> at <strong>${formatTime(
+          appointment.Time
+        )}</strong> has been cancelled.</p>
+              <p>If you did not request this cancellation, please contact us. We hope to see you again soon!</p>
+            </div>
           </div>
         `,
         textContent: `Hi ${
           appointment.Name
         },\n\nYour appointment scheduled for ${formatDate(
           appointment.Date
-        )} at ${formatTime(
-          appointment.Time
-        )} has been cancelled.\n\nWe hope to see you again soon!`,
+        )} at ${formatTime(appointment.Time)} has been cancelled.\n\nWe hope to see you again soon!`,
       };
     case "reschedule":
       return {
         subject: "Appointment Rescheduled",
         htmlContent: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h1 style="color: #d97706;">Appointment Rescheduled</h1>
-            <p>Hi ${appointment.Name},</p>
-            <p>Your appointment has been rescheduled to ${formatDate(
-              appointment.Date
-            )} at ${formatTime(appointment.Time)}.</p>
-            <p>We look forward to seeing you!</p>
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #fffbeb; padding: 20px; border-radius: 10px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #d97706; margin-bottom: 10px;">Appointment Rescheduled</h1>
+            </div>
+            <div style="background-color: white; padding: 25px; border-radius: 8px; border: 2px solid #fbbf24;">
+              <p>Hi ${appointment.Name},</p>
+              <p>This is a confirmation that your appointment has been successfully rescheduled. Your new appointment details are:</p>
+              <p><strong>Date:</strong> ${formatDate(appointment.Date)}<br>
+                 <strong>Time:</strong> ${formatTime(appointment.Time)}</p>
+              <p>We look forward to seeing you!</p>
+            </div>
           </div>
         `,
         textContent: `Hi ${
           appointment.Name
         },\n\nYour appointment has been rescheduled to ${formatDate(
           appointment.Date
-        )} at ${formatTime(
-          appointment.Time
-        )}.\n\nWe look forward to seeing you!`,
+        )} at ${formatTime(appointment.Time)}.\n\nWe look forward to seeing you!`,
       };
     case "now_serving":
       return {
         subject: "It's Your Turn at Glowpoint!",
-        htmlContent: `<p>Hi ${appointment.Name}, it's your turn to be served! Please proceed to the counter. Your queue number is ${appointment.position}.</p>`,
-        textContent: `Hi ${appointment.Name}, it's your turn to be served! Please proceed to the counter. Your queue number is ${appointment.position}.`,
+        htmlContent: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #fffbeb; padding: 20px; border-radius: 10px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #d97706; margin-bottom: 10px;">It's Your Turn!</h1>
+            </div>
+            <div style="background-color: white; padding: 25px; border-radius: 8px; border: 2px solid #fbbf24; text-align: center;">
+              <p style="font-size: 18px;">Hi ${
+                appointment.Name
+              }, your queue number is now being called!</p>
+              <p style="font-size: 48px; font-weight: bold; color: #d97706; margin: 20px 0;">#${
+                appointment.position
+              }</p>
+              <p style="font-size: 18px;">Please proceed to the counter.</p>
+            </div>
+          </div>
+        `,
+        textContent: `Hi ${appointment.Name}, it's your turn! Your queue number is #${appointment.position}. Please proceed to the counter.`,
       };
     default:
       throw new Error(`Unknown email type: ${emailType}`);
@@ -2107,6 +2130,66 @@ export const advanceQueue = async (): Promise<
   }
 };
 
+export const notifyNextInQueue = async (): Promise<ActionResult<null>> => {
+  try {
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    // Find the user at the front of the queue
+    const { data: nextUser, error: fetchError } = await supabaseAdmin
+      .from("queue_entries")
+      .select("*")
+      .eq("is_active", true)
+      .eq("position", 1)
+      .single();
+
+    if (fetchError) {
+      if (fetchError.code === "PGRST116") {
+        return { success: false, error: "Queue is empty." };
+      }
+      throw fetchError;
+    }
+
+    if (!nextUser) {
+      return { success: false, error: "No one is next in the queue." };
+    }
+
+    const { data: profile } = await supabaseAdmin
+      .from("Profiles")
+      .select("username")
+      .eq("id", nextUser.user_id)
+      .single();
+
+    const notificationData = {
+      Name: profile?.username || "Valued Customer",
+      Email: nextUser.email,
+      Phone: nextUser.phone,
+      position: nextUser.position,
+    };
+
+    if (nextUser.phone) {
+      await sendSms(
+        nextUser.phone,
+        getSmsContent("now_serving", notificationData)
+      );
+    }
+
+    if (nextUser.email) {
+      await sendBrevoEmail("now_serving", notificationData);
+    }
+
+    return { success: true, data: null };
+  } catch (error: any) {
+    console.error("Error notifying next in queue:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
 // Reset queue (end of day)
 export const resetQueue = async (): Promise<
   ActionResult<{ message: string }>

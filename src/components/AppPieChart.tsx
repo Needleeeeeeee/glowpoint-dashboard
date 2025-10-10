@@ -15,6 +15,7 @@ interface AppPieChartProps {
     pending: number;
     failed: number;
     assigned: number;
+    verified: number;
   }[];
   dateRangeText: string;
   config: ChartConfig;
@@ -25,23 +26,25 @@ const STATUS_COLORS = {
   success: "#10b981", // Green
   pending: "#f59e0b", // Amber
   failed: "#ef4444",  // Red
-  assigned: "#3b82f6" // Blue
+  assigned: "#3b82f6", // Blue
+  verified: "#8b5cf6", // Violet
 };
 
 const AppPieChart = ({ data: chartData, dateRangeText, config }: AppPieChartProps) => {
   console.log('Pie chart config:', config);
   console.log('Pie chart data:', chartData);
 
-  const { totalSuccess, totalPending, totalFailed, totalAssigned, totalAppointments } = chartData.reduce(
+  const { totalSuccess, totalPending, totalFailed, totalAssigned, totalVerified, totalAppointments } = chartData.reduce(
     (acc, curr) => {
       acc.totalSuccess += curr.success;
       acc.totalPending += curr.pending;
       acc.totalFailed += curr.failed;
       acc.totalAssigned += curr.assigned;
-      acc.totalAppointments += curr.success + curr.pending + curr.failed + curr.assigned;
+      acc.totalVerified += curr.verified;
+      acc.totalAppointments += curr.success + curr.pending + curr.failed + curr.assigned + curr.verified;
       return acc;
     },
-    { totalSuccess: 0, totalPending: 0, totalFailed: 0, totalAssigned: 0, totalAppointments: 0 }
+    { totalSuccess: 0, totalPending: 0, totalFailed: 0, totalAssigned: 0, totalVerified: 0, totalAppointments: 0 }
   );
 
   const pieData = [
@@ -49,6 +52,7 @@ const AppPieChart = ({ data: chartData, dateRangeText, config }: AppPieChartProp
     { status: "pending", name: "Pending", count: totalPending },
     { status: "failed", name: "Failed", count: totalFailed },
     { status: "assigned", name: "Assigned", count: totalAssigned },
+    { status: "verified", name: "Verified", count: totalVerified },
   ].filter(item => item.count > 0);
 
   // Function to get color for a status

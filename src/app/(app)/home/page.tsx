@@ -6,7 +6,7 @@ import AppHorizontalBarChart from "@/components/AppHorizontalBarChart";
 import AppBarChart from "@/components/AppBarChart";
 import { RecentActivity } from "@/components/RecentActivity";
 import { RecentFeedback } from "@/components/RecentFeedback";
-import { addDays, format, eachDayOfInterval, startOfDay } from "date-fns";
+import { addDays, format, eachDayOfInterval, startOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { ChartConfig } from "@/components/ui/chart";
 import {
   Card,
@@ -23,8 +23,8 @@ import { QueueWidget } from "@/components/QueueWidget";
 async function getDashboardData(params: { from?: string; to?: string }, isAdmin: boolean) {
   const supabase = await createClient();
 
-  const from = params.from ? new Date(params.from) : new Date();
-  const to = params.to ? new Date(params.to) : addDays(new Date(), 30);
+  const from = params.from ? new Date(params.from) : startOfMonth(new Date());
+  const to = params.to ? new Date(params.to) : endOfMonth(new Date());
   const dateRangeText = `${format(from, "LLL dd, y")} - ${format(
     to,
     "LLL dd, y"
@@ -63,6 +63,7 @@ async function getDashboardData(params: { from?: string; to?: string }, isAdmin:
       pending: number;
       failed: number;
       assigned: number;
+      verified: number;
     };
   } = {};
   interval.forEach((day) => {
@@ -72,6 +73,7 @@ async function getDashboardData(params: { from?: string; to?: string }, isAdmin:
       pending: 0,
       failed: 0,
       assigned: 0,
+      verified: 0,
     };
   });
 
@@ -82,6 +84,7 @@ async function getDashboardData(params: { from?: string; to?: string }, isAdmin:
       if (app.status === "pending") statusCountsByDay[dayKey].pending++;
       if (app.status === "failed") statusCountsByDay[dayKey].failed++;
       if (app.status === "assigned") statusCountsByDay[dayKey].assigned++;
+      if (app.status === "verified") statusCountsByDay[dayKey].verified++;
     }
   });
 
@@ -97,18 +100,25 @@ async function getDashboardData(params: { from?: string; to?: string }, isAdmin:
     pending: { label: "Pending", color: "var(--chart-3)" },
     failed: { label: "Failed", color: "var(--chart-5)" },
     assigned: { label: "Assigned", color: "var(--chart-1)" },
+    verified: { label: "Verified", color: "var(--chart-4)" },
   } satisfies ChartConfig;
 
   // --- Data for Line Chart (Popular Services) ---
   const serviceCounts: { [key: string]: number } = {};
   appointments.forEach((app) => {
-    if (typeof app.Services === "string") {
-      app.Services.split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .forEach((service) => {
-          serviceCounts[service] = (serviceCounts[service] || 0) + 1;
-        });
+    if (
+      app.status === "success" ||
+      app.status === "assigned" ||
+      app.status === "verified"
+    ) {
+      if (typeof app.Services === "string") {
+        app.Services.split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .forEach((service) => {
+            serviceCounts[service] = (serviceCounts[service] || 0) + 1;
+          });
+      }
     }
   });
 
@@ -145,7 +155,11 @@ async function getDashboardData(params: { from?: string; to?: string }, isAdmin:
     if (revenueByDay[dayKey] && app.Total) {
       if (app.status === "success") {
         revenueByDay[dayKey].success += app.Total;
-      } else if (app.status === "pending" || app.status === "assigned") {
+      } else if (
+        app.status === "pending" ||
+        app.status === "assigned" ||
+        app.status === "verified"
+      ) {
         revenueByDay[dayKey].pending += app.Total;
       }
     }

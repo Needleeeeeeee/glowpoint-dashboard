@@ -30,6 +30,7 @@ const getData = async (): Promise<Payment[]> => {
   const payments: Payment[] = data.map((payment) => ({
     id: payment.id,
     username: payment.Name ?? "N/A",
+    email: payment.Email ?? "N/A",
     phone: payment.Phone ?? "N/A",
     date:payment.Date ?? "N/A",
     time:payment.Time ?? "N/A",
