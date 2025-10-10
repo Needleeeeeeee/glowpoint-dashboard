@@ -33,7 +33,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { deactivateUsers } from "@/actions";
+import { deactivateUsers, reactivateUser } from "@/actions";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -49,7 +50,7 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
 }
 
-export function DataTable<TData extends { id: string }, TValue>({
+export function DataTable<TData extends { id: string; is_active?: boolean }, TValue>({
   columns,
   data,
 }: DataTableProps<TData, TValue>) {
@@ -70,6 +71,7 @@ export function DataTable<TData extends { id: string }, TValue>({
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     onRowSelectionChange: setRowSelection,
+    getRowId: (row) => row.id,
     state: {
       sorting,
       columnFilters,
@@ -91,6 +93,17 @@ export function DataTable<TData extends { id: string }, TValue>({
         table.resetRowSelection();
       }
       setIsDeleteDialogOpen(false);
+    });
+  };
+
+  const handleReactivate = (userId: string) => {
+    startDeleteTransition(async () => {
+      const result = await reactivateUser(userId);
+      if (result?.error) {
+        toast.error(result.error);
+      } else if (result?.success) {
+        toast.success(result.success);
+      }
     });
   };
 
@@ -129,6 +142,23 @@ export function DataTable<TData extends { id: string }, TValue>({
               <SelectItem value="all">All Roles</SelectItem>
               <SelectItem value="Admin">Admin</SelectItem>
               <SelectItem value="Employee">Employee</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={
+              (table.getColumn("is_active")?.getFilterValue() as string) ?? "all"
+            }
+            onValueChange={(value) =>
+              table.getColumn("is_active")?.setFilterValue(value === "all" ? "" : value)
+            }
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="Active">Active</SelectItem>
+              <SelectItem value="Disabled">Disabled</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -175,11 +205,15 @@ export function DataTable<TData extends { id: string }, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className={cn(!row.original.is_active && "text-muted-foreground opacity-50")}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className="whitespace-nowrap"
+                      className={cn(
+                        "whitespace-nowrap",
+                        cell.column.id === "actions" && "w-[80px]"
+                      )}
                       style={{ width: cell.column.getSize() }}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

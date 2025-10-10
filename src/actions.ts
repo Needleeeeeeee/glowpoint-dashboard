@@ -65,51 +65,68 @@ export async function deactivateUsers(userIds: string[]) {
 
   const supabase = await createClient();
 
-  const { error: profileError } = await supabase
-    .from("Profiles")
-    .update({ is_active: false })
-    .in("id", userIds);
+  const rpcErrors = [];
+  for (const userId of userIds) {
+    const { error } = await supabase.rpc('deactivate_user', {
+      p_user_id: userId,
+    });
 
-  if (profileError) {
-    console.error("Error deactivating users in Profiles:", profileError);
-    return { error: "Failed to deactivate user profiles." };
+    if (error) {
+      console.error(`Error deactivating user ${userId}:`, error);
+      rpcErrors.push({ userId, message: error.message });
+    }
   }
 
+  if (rpcErrors.length > 0) {
+    console.error('Errors deactivating users via RPC:', rpcErrors);
+    return {
+      error: 'Failed to deactivate some users. Please check server logs.',
+    };
+  }
+
+  revalidatePath("/(app)/users", "page");
+  return { success: `${userIds.length} user(s) have been deactivated.` };
+}
+
+export async function reactivateUser(userId: string) {
+  if (!userId) {
+    return { error: "No user selected." };
+  }
+
+  const supabase = await createClient();
+
+  // First, update the user's profile to be active
+  const { error: profileError } = await supabase
+    .from("Profiles")
+    .update({ is_active: true })
+    .eq("id", userId);
+
+  if (profileError) {
+    console.error("Error reactivating user in Profiles:", profileError);
+    return { error: "Failed to reactivate user profile." };
+  }
+
+  // Then, remove the ban from Supabase Auth using the admin client
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  // "Deactivate" users in Supabase Auth by banning them.
-  const authErrors = [];
-  for (const userId of userIds) {
-    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
-      userId,
-      { ban_duration: "365d" } // Ban for 1 year
-    );
-    if (authError) {
-      console.error(`Error deactivating user ${userId} in Auth:`, authError);
-      authErrors.push({ userId, message: authError.message });
-    }
-  }
+  const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+    userId,
+    { ban_duration: "none" } // Remove the ban
+  );
 
-  if (authErrors.length > 0) {
-    console.error("Errors deactivating users in Auth:", authErrors);
-    // Attempt to rollback profile changes for failed auth updates
-    const failedUserIds = authErrors.map((e) => e.userId);
-    await supabase
-      .from("Profiles")
-      .update({ is_active: true })
-      .in("id", failedUserIds);
-    return {
-      error:
-        "Failed to deactivate some users in the authentication service. Profile changes have been rolled back.",
-    };
+  if (authError) {
+    console.error(`Error reactivating user ${userId} in Auth:`, authError);
+    // Rollback the profile change
+    await supabase.from("Profiles").update({ is_active: false }).eq("id", userId);
+    return { error: "Failed to reactivate user in authentication service." };
   }
 
   revalidatePath("/(app)/users", "page");
-  return { success: `${userIds.length} user(s) have been deactivated.` };
+  return { success: "User has been reactivated." };
 }
 
 export const updateUserProfile = async (prevState: any, formData: FormData) => {

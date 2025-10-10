@@ -14,10 +14,12 @@ import CreateUserForm from "@/components/CreateUserForm";
 
 const getProfiles = async (): Promise<Users[]> => {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("Profiles")
-    .select("*")
-    .eq("is_active", true);
+    .select("*");
 
   if (error) {
     console.error("Error fetching profiles:", error);
@@ -28,15 +30,20 @@ const getProfiles = async (): Promise<Users[]> => {
     return [];
   }
 
-  const profiles: Users[] = data.map((profile) => ({
-    id: profile.id,
-    username: profile.username ?? "N/A",
-    email: profile.email ?? "N/A",
-    phone: profile.phone ?? "N/A",
-    location: profile.location ?? "N/A",
-    isAdmin: profile.isAdmin,
-    is_active: profile.is_active,
-  }));
+  const profiles: Users[] = data
+    .filter((profile) => profile.id !== user?.id) // Exclude the current user
+    .map((profile) => {
+      const phone = profile.phone ?? "N/A";
+      return {
+        id: profile.id,
+        username: profile.username ?? "N/A",
+        email: profile.email ?? "N/A",
+        phone: phone.startsWith("+63") ? `0${phone.substring(3)}` : phone,
+        location: profile.location ?? "N/A",
+        isAdmin: profile.isAdmin,
+        is_active: profile.is_active,
+      };
+    });
 
   return profiles;
 };
