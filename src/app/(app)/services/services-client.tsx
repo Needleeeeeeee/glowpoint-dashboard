@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { getColumns, Service } from "./columns";
 import { DataTable } from "./data-table";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import CreateServiceForm from "@/components/CreateServiceForm";
+import { EditServiceDialog } from "@/components/EditServiceDialog";
 
 interface ServicesClientProps {
   services: Service[];
@@ -24,7 +26,12 @@ export default function ServicesClient({
   categories,
   isAdmin,
 }: ServicesClientProps) {
-  const columns = getColumns(isAdmin);
+  const [editingService, setEditingService] = useState<Service | null>(null);
+
+  const columns = getColumns(isAdmin, (service) => setEditingService(service));
+
+  // This function will be called by the EditServiceDialog on successful update
+  const handleSuccess = () => {};
 
   return (
     <div className="w-full px-6 py-10">
@@ -47,7 +54,15 @@ export default function ServicesClient({
           </Sheet>
         )}
       </div>
-      <DataTable columns={columns} data={services} />
+      <DataTable columns={columns} data={services} isAdmin={isAdmin} />
+      {editingService && (
+        <EditServiceDialog
+          service={editingService}
+          isOpen={!!editingService}
+          onOpenChange={(open) => !open && setEditingService(null)}
+          onSuccess={handleSuccess}
+        />
+      )}
     </div>
   );
 }

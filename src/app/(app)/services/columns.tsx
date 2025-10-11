@@ -20,10 +20,12 @@ export type Service = {
   price: number;
 };
 
-export const getColumns = (isAdmin: boolean): ColumnDef<Service>[] => {
+export const getColumns = (
+  isAdmin: boolean,
+  openEditDialog: (service: Service) => void
+): ColumnDef<Service>[] => {
   const columns: ColumnDef<Service>[] = [];
 
-  // Conditionally add the select checkbox column for admins
   if (isAdmin) {
     columns.push({
       id: "select",
@@ -95,6 +97,7 @@ export const getColumns = (isAdmin: boolean): ColumnDef<Service>[] => {
       const service = row.original;
       const meta = table.options.meta as {
         handleSingleDelete: (serviceId: number) => void;
+        handleEdit: (service: Service) => void;
       };
       return (
         <div className="text-right">
@@ -107,7 +110,9 @@ export const getColumns = (isAdmin: boolean): ColumnDef<Service>[] => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem>Edit</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openEditDialog(service)}>
+                Edit
+              </DropdownMenuItem>
               {isAdmin && (
                 <>
                   <DropdownMenuSeparator />

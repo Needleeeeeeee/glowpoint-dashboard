@@ -40,11 +40,13 @@ import { Trash2 } from "lucide-react";
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  isAdmin: boolean;
 }
 
 export function DataTable<TData extends { id: number }, TValue>({
   columns,
   data,
+  isAdmin,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -72,6 +74,9 @@ export function DataTable<TData extends { id: number }, TValue>({
       handleSingleDelete: (serviceId: number) => {
         setServiceToDelete(serviceId);
         setIsDeleteDialogOpen(true);
+      },
+      handleEdit: (service: TData) => {
+        (table.options.meta as any)?.openEditDialog?.(service);
       },
     },
   });
