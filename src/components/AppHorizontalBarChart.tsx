@@ -41,7 +41,7 @@ const AppAreaChart = ({ data: chartData, config }: AppAreaChartProps) => {
           data={chartData}
           layout="vertical"
           margin={{
-            left: 10,
+            left: 20,
             right: 20,
             top: 20,
             bottom: 20,
@@ -54,7 +54,7 @@ const AppAreaChart = ({ data: chartData, config }: AppAreaChartProps) => {
             tickLine={false}
             axisLine={false}
             tickMargin={10}
-            width={120}
+            width={150}
             interval={0}
             tick={{
               fontSize: 12,

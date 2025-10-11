@@ -6,7 +6,14 @@ import AppHorizontalBarChart from "@/components/AppHorizontalBarChart";
 import AppBarChart from "@/components/AppBarChart";
 import { RecentActivity } from "@/components/RecentActivity";
 import { RecentFeedback } from "@/components/RecentFeedback";
-import { addDays, format, eachDayOfInterval, startOfDay, startOfMonth, endOfMonth } from "date-fns";
+import {
+  addDays,
+  format,
+  eachDayOfInterval,
+  startOfDay,
+  startOfMonth,
+  endOfMonth,
+} from "date-fns";
 import { ChartConfig } from "@/components/ui/chart";
 import {
   Card,
@@ -20,7 +27,10 @@ import { ActivitySearch } from "@/components/ActivitySearch";
 import { AppointmentVerification } from "@/components/AppointmentVerification";
 import { QueueWidget } from "@/components/QueueWidget";
 
-async function getDashboardData(params: { from?: string; to?: string }, isAdmin: boolean) {
+async function getDashboardData(
+  params: { from?: string; to?: string },
+  isAdmin: boolean
+) {
   const supabase = await createClient();
 
   const from = params.from ? new Date(params.from) : startOfMonth(new Date());
@@ -32,9 +42,9 @@ async function getDashboardData(params: { from?: string; to?: string }, isAdmin:
 
   let query = supabase
     .from("Appointments")
-    .select("date_created, status, Services, Total, Time")
-    .gte("date_created", from.toISOString())
-    .lte("date_created", to.toISOString());
+    .select("Date, status, Services, Total, Time")
+    .gte("Date", from.toISOString())
+    .lte("Date", to.toISOString());
 
   const { data: appointments, error } = await query;
 
@@ -78,7 +88,7 @@ async function getDashboardData(params: { from?: string; to?: string }, isAdmin:
   });
 
   appointments.forEach((app) => {
-    const dayKey = format(new Date(app.date_created), "yyyy-MM-dd");
+    const dayKey = format(new Date(app.Date), "yyyy-MM-dd");
     if (statusCountsByDay[dayKey]) {
       if (app.status === "success") statusCountsByDay[dayKey].success++;
       if (app.status === "pending") statusCountsByDay[dayKey].pending++;
@@ -103,30 +113,59 @@ async function getDashboardData(params: { from?: string; to?: string }, isAdmin:
     verified: { label: "Verified", color: "var(--chart-4)" },
   } satisfies ChartConfig;
 
-  // --- Data for Line Chart (Popular Services) ---
+  // --- Data for Horizontal Bar Chart (Popular Services) ---
   const serviceCounts: { [key: string]: number } = {};
+  const serviceNameMapping: { [key: string]: string } = {}; // Track original names
+
   appointments.forEach((app) => {
     if (
-      app.status === "success" ||
-      app.status === "assigned" ||
-      app.status === "verified"
+      app.status !== "failed"
     ) {
+      let services: string[] = [];
+
       if (typeof app.Services === "string") {
-        app.Services.split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .forEach((service) => {
-            serviceCounts[service] = (serviceCounts[service] || 0) + 1;
-          });
+        // Try to parse as JSON array first
+        if (app.Services.startsWith("[")) {
+          try {
+            services = JSON.parse(app.Services);
+          } catch (e) {
+            console.error("Failed to parse Services JSON:", app.Services);
+          }
+        } else {
+          // Handle comma-separated string or single service
+          services = app.Services.split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        }
+      } else if (Array.isArray(app.Services)) {
+        services = app.Services;
       }
+
+      // Count each service
+      services.forEach((service) => {
+        if (service) {
+          const normalizedKey = service
+            .trim()
+            .replace(/\s+/g, " ") // Multiple spaces → single space
+            .replace(/\s*-\s*/g, "-") // Spaces around hyphens → just hyphen
+            .replace(/\s+/g, "-"); // Remaining spaces → hyphens
+          if (!serviceNameMapping[normalizedKey]) {
+            serviceNameMapping[normalizedKey] = service.trim();
+          }
+
+          serviceCounts[normalizedKey] =
+            (serviceCounts[normalizedKey] || 0) + 1;
+        }
+      });
     }
   });
 
+
   const popularServicesData = Object.entries(serviceCounts)
-    .map(([service, count]) => ({
-      service,
+    .map(([normalizedKey, count]) => ({
+      service: serviceNameMapping[normalizedKey], // Use the original clean name
       count,
-      slug: service.toLowerCase().replace(/\s+/g, "-"),
+      slug: normalizedKey.toLowerCase().replace(/\s+/g, "-"),
     }))
     .sort((a, b) => b.count - a.count);
 
@@ -143,24 +182,25 @@ async function getDashboardData(params: { from?: string; to?: string }, isAdmin:
   );
 
   // --- Data for Bar Chart (Total Revenue) ---
-  const revenueByDay: { [key: string]: { success: number; pending: number } } =
-    {};
+  const revenueByDay: {
+    [key: string]: {
+      success: number;
+      pending: number;
+    };
+  } = {};
   interval.forEach((day) => {
     const dayKey = format(day, "yyyy-MM-dd");
     revenueByDay[dayKey] = { success: 0, pending: 0 };
   });
 
   appointments.forEach((app) => {
-    const dayKey = format(new Date(app.date_created), "yyyy-MM-dd");
-    if (revenueByDay[dayKey] && app.Total) {
+    const dayKey = format(new Date(app.Date), "yyyy-MM-dd");
+    if (revenueByDay[dayKey]) {
+      const total = app.Total || 0;
       if (app.status === "success") {
-        revenueByDay[dayKey].success += app.Total;
-      } else if (
-        app.status === "pending" ||
-        app.status === "assigned" ||
-        app.status === "verified"
-      ) {
-        revenueByDay[dayKey].pending += app.Total;
+        revenueByDay[dayKey].success += total;
+      } else if (app.status !== "failed") {
+        revenueByDay[dayKey].pending += total;
       }
     }
   });
@@ -294,7 +334,9 @@ export default async function HomePage({
         {/* Recent Activity */}
         <Card className={isAdmin ? "lg:col-span-1" : "lg:col-span-2"}>
           <CardHeader className="p-4 md:p-6">
-            <CardTitle className="text-lg md:text-xl">Recent Activity</CardTitle>
+            <CardTitle className="text-lg md:text-xl">
+              Recent Activity
+            </CardTitle>
             <CardDescription className="text-sm md:text-base">
               A feed of recent appointment claims by employees.
             </CardDescription>
@@ -308,20 +350,26 @@ export default async function HomePage({
         {/* Recent Feedback */}
         <Card className="lg:col-span-2">
           <CardHeader className="p-4 md:p-6">
-            <CardTitle className="text-lg md:text-xl">Recent Feedback</CardTitle>
+            <CardTitle className="text-lg md:text-xl">
+              Recent Feedback
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-4 md:p-6 pt-0">
             <RecentFeedback
               page={page}
               rating={rating}
               hasComment={has_comment}
+              from={from}
+              to={to}
             />
           </CardContent>
         </Card>
 
         {isAdmin && (
           <Card className="lg:col-span-2">
-            <AppointmentVerification initialAppointments={pendingAppointments} />
+            <AppointmentVerification
+              initialAppointments={pendingAppointments}
+            />
           </Card>
         )}
 

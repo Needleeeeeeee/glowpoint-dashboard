@@ -11,15 +11,21 @@ export async function RecentFeedback({
   page: pageParam,
   rating: ratingParam,
   hasComment: hasCommentParam,
+  from: fromParam,
+  to: toParam,
 }: {
   page?: string;
   rating?: string;
   hasComment?: string;
+  from?: string;
+  to?: string;
 }) {
   const supabase = await createClient();
   const page = pageParam ? parseInt(pageParam, 10) : 1;
   const ratingFilter = ratingParam ? parseInt(ratingParam, 10) : null;
   const hasCommentFilter = hasCommentParam === 'true';
+  const fromDate = fromParam ? new Date(fromParam).toISOString() : undefined;
+  const toDate = toParam ? new Date(toParam).toISOString() : undefined;
 
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
@@ -34,6 +40,14 @@ export async function RecentFeedback({
 
   if (hasCommentFilter) {
     query = query.not('comment', 'is', null).neq('comment', '');
+  }
+
+  if (fromDate) {
+    query = query.gte('created_at', fromDate);
+  }
+
+  if (toDate) {
+    query = query.lte('created_at', toDate);
   }
 
   const { data: feedback, error, count } = await query
