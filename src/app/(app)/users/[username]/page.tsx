@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import EditUsersWrapper from "@/components/EditUsersWrapper";
 import { createClient } from "@/utils/supabase/server";
-import EditDetailsWrapper from "@/components/EditDetailsWrapper";
+import EditDetailsButton from "@/components/EditDetailsButton";
 
 export default async function SingleUserPage({
   params,
@@ -51,11 +51,6 @@ export default async function SingleUserPage({
 
   // An admin can edit any profile, or a user can edit their own.
   const canEdit = isOwnProfile || isCurrentUserAdmin;
-  console.log("User:", loggedInUser?.id);
-  console.log("Viewed Profile:", viewedUserProfile.id);
-  console.log("Is Own Profile:", isOwnProfile);
-  console.log("Is Admin:", isCurrentUserAdmin);
-  console.log("Can Edit:", canEdit);
 
   return (
     <div className="min-h-screen p-4">
@@ -136,15 +131,7 @@ export default async function SingleUserPage({
                 </h1>
               </div>
               {canEdit && (
-                <Sheet>
-                  <SheetTrigger asChild>
-                    <Button variant="outline">Edit Details</Button>
-                  </SheetTrigger>
-                  <EditDetailsWrapper
-                    userProfile={viewedUserProfile}
-                    factors={factors}
-                  />
-                </Sheet>
+                <EditDetailsButton userProfile={viewedUserProfile} factors={factors} />
               )}
             </div>
             <div className="flex-1 flex items-center justify-center relative pt-12">
@@ -154,11 +141,11 @@ export default async function SingleUserPage({
               {viewedUserProfile.bio ? (
                 <blockquote className="relative max-w-prose px-8 text-center text-lg italic leading-relaxed text-muted-foreground md:text-xl xl:text-2xl">
                   <span className="absolute -left-2 -top-2 select-none font-serif text-6xl text-muted-foreground/20">
-                    “
+                    "
                   </span>
                   {viewedUserProfile.bio}
                   <span className="absolute -bottom-6 -right-2 select-none font-serif text-6xl text-muted-foreground/20">
-                    ”
+                    "
                   </span>
                 </blockquote>
               ) : (
