@@ -1,10 +1,4 @@
 "use client";
-import {
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form } from "@/components/ui/form";
@@ -106,114 +100,107 @@ const EditUsers = ({ userProfile }: EditUsersProps) => {
   };
 
   return (
-    <SheetContent>
-      <SheetHeader>
-        <SheetTitle className="mb-4">Edit User</SheetTitle>
-        <SheetDescription asChild>
-          <Form {...form}>
-            <form className="space-y-8" onSubmit={form.handleSubmit(onSubmit)}>
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Enter username"
-                        {...field}
-                        disabled={isPending}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      This is your public display name.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+    <Form {...form}>
+      <form className="space-y-8 pt-6" onSubmit={form.handleSubmit(onSubmit)}>
+        <FormField
+          control={form.control}
+          name="username"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Username</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Enter username"
+                  {...field}
+                  disabled={isPending}
+                />
+              </FormControl>
+              <FormDescription>
+                This is your public display name.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="email"
-                        placeholder="Enter email"
-                        {...field}
-                        disabled={isPending}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Only admin can see your email.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input
+                  type="email"
+                  placeholder="Enter email"
+                  {...field}
+                  disabled={isPending}
+                />
+              </FormControl>
+              <FormDescription>
+                Only admin can see your email.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="tel"
-                        placeholder="Enter phone number"
-                        {...field}
-                        disabled={isPending}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Only admin can see your phone.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+        <FormField
+          control={form.control}
+          name="phone"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Phone</FormLabel>
+              <FormControl>
+                <Input
+                  type="tel"
+                  placeholder="Enter phone number"
+                  {...field}
+                  disabled={isPending}
+                />
+              </FormControl>
+              <FormDescription>
+                Only admin can see your phone.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-              <FormField
-                control={form.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Location</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Enter location"
-                        {...field}
-                        disabled={isPending}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Publicly displayed location.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+        <FormField
+          control={form.control}
+          name="location"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Location</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Enter location"
+                  {...field}
+                  disabled={isPending}
+                />
+              </FormControl>
+              <FormDescription>
+                Publicly displayed location.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-              <Button type="submit" disabled={isPending}>
-                {isPending ? "Updating..." : "Update User"}
-              </Button>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "Updating..." : "Update User"}
+        </Button>
 
-              {/* Show action state if there are errors or success messages */}
-              {state?.error && (
-                <p className="text-red-500 text-sm">{state.error}</p>
-              )}
-              {state?.success && (
-                <p className="text-green-500 text-sm">{state.success}</p>
-              )}
-            </form>
-          </Form>
-        </SheetDescription>
-      </SheetHeader>
-    </SheetContent>
+        {/* Show action state if there are errors or success messages */}
+        {state?.error && (
+          <p className="text-red-500 text-sm">{state.error}</p>
+        )}
+        {state?.success && (
+          <p className="text-green-500 text-sm">{state.success}</p>
+        )}
+      </form>
+    </Form>
   );
 };
 

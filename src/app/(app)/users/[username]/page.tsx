@@ -10,7 +10,7 @@ import { createClient } from "@/utils/supabase/server";
 import EditDetailsWrapper from "@/components/EditDetailsWrapper";
 
 const SingleUserPage = async ({ params }: { params: { username: string } }) => {
-    const { username } = await params;
+    const { username } = await Promise.resolve(params);
   const supabase = await createClient();
 
   const {
