@@ -1593,7 +1593,7 @@ function getSmsContent(smsType: string, appointment: any) {
     case "reminder":
       return `Glowpoint Reminder: Your appointment is in 2 hours at ${formatTime(
         appointment.Time
-      )}. Please be on time. See you soon!`;
+      )}. Please be on time. See you soon! Don't forget to check https://glowpoint.org to leave your feedback after the appointment!`;
     case "now_serving":
       return `Glowpoint: Hi! It's your turn soon! Your queue number is ${
         appointment.position
@@ -1791,8 +1791,11 @@ function getEmailContent(emailType: string, appointment: any) {
             </div>
 
             <div style="text-align: center; margin-top: 30px;">
-              <p style="color: #92400e; font-size: 14px;">Please arrive on time! After 15 minutes of being late, the appointment may be considered void.</p>
+              <p style="color: #92400e; font-size: 14px;">
+                Please arrive on time! After 15 minutes of being late, the appointment may be considered void.
+              </p>
               <p style="color: #d97706; font-weight: bold;">See you soon!</p>
+              <p style="color: #92400e; font-size: 12px; margin-top: 20px;">Don't forget to check <a href="https://glowpoint.org" style="color: #1e40af;">glowpoint.org</a> to leave your feedback after the appointment!</p>
             </div>
           </div>
         `,
