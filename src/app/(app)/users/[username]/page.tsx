@@ -17,15 +17,6 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Check if the currently logged-in user is an admin
-  const { data: currentUserProfile } = await supabase
-    .from("Profiles")
-    .select("isAdmin")
-    .eq("id", user?.id)
-    .single();
-
-  const isCurrentUserAdmin = currentUserProfile?.isAdmin || false;
-
   // Fetch the profile of the user whose page is being viewed
   const { data: viewedUserProfile, error: profileError } = await supabase
     .from("Profiles")
@@ -37,8 +28,9 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
     return <div>User not found.</div>;
   }
 
-  // Check if the logged-in user is viewing their own profile
   const isOwnProfile = user?.id === viewedUserProfile.id;
+
+  const canEdit = isOwnProfile || false;
 
   return (
     <div className="min-h-screen p-4">
@@ -47,7 +39,7 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
           <div className="bg-primary-foreground p-4 rounded-lg h-full flex flex-col min-h-[400px] xl:min-h-full">
             <div className="flex items-center justify-between">
               <h1 className="font-bold mb-2 text-lg md:text-xl xl:text-2xl">User Information</h1>
-              {(isCurrentUserAdmin || isOwnProfile) && (
+              {isOwnProfile && (
                 <Sheet>
                   <SheetTrigger asChild>
                     <Button>Edit User</Button>
@@ -98,7 +90,7 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
                   {viewedUserProfile.username}
                 </h1>
               </div>
-              {(isCurrentUserAdmin || isOwnProfile) && (
+              {isOwnProfile && (
                 <Sheet>
                   <SheetTrigger asChild>
                     <Button variant="outline">Edit Details</Button>
