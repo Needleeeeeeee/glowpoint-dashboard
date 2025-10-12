@@ -119,8 +119,6 @@ export function AppointmentVerification({
           .limit(50);
 
         if (error) throw error;
-
-        // Normalize services data for all appointments
         const normalizedAppointments = (data || []).map((appointment) => ({
           ...appointment,
           Services: normalizeServices(appointment.Services),
@@ -245,7 +243,6 @@ export function AppointmentVerification({
       const result = await verifyAppointmentAction(appointmentId);
       if (result.success) {
         toast.success(result.success);
-        // Remove the verified appointment from the local state
         setAppointments((prev) =>
           prev.filter((app) => app.id !== appointmentId)
         );

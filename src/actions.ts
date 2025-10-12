@@ -753,7 +753,7 @@ export async function createService(prevState: any, formData: FormData) {
     if (hasServiceCategory) {
       const { type, column, sortOrder, label, dbCategory, categoryKey, dependsOn } = categoryData;
 
-      if (!type || !column || !label || !dbCategory || !categoryKey || sortOrder === undefined) {
+      if (!type || !column || !label || !dbCategory || !categoryKey || sortOrder === undefined || sortOrder === null) {
         return {
           error: "Service was created, but category creation failed: Missing required category fields.",
         };
@@ -1237,11 +1237,6 @@ export async function createServiceCategory(
       error: "Label, DB Category, Category Key, Type, and Column are required.",
     };
   }
-  if (sortOrder === undefined || isNaN(sortOrder)) {
-    return {
-      error: "All fields are required and sort order must be a valid number",
-    };
-  }
 
   // Validate type
   if (!["ExclusiveDropdown", "AddOnDropdown"].includes(type)) {
@@ -1257,30 +1252,32 @@ export async function createServiceCategory(
     };
   }
 
-  // Check if sort order is unique within the column
-  const { data: existingSortOrders, error: sortOrderError } = await supabase
-    .from("ServiceCategories")
-    .select("sort_order")
-    .eq("column", column)
-    .eq("sort_order", sortOrder);
+  let finalSortOrder = sortOrder;
 
-  if (sortOrderError) {
-    return {
-      error: "Failed to validate sort order: " + sortOrderError.message,
-    };
+  if (finalSortOrder === undefined || finalSortOrder === null) {
+    const { data: maxSortOrder, error: maxSortOrderError } = await supabase
+      .from("ServiceCategories")
+      .select("sort_order")
+      .eq("column", column)
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (maxSortOrderError && maxSortOrderError.code !== 'PGRST116') { // PGRST116: no rows found
+      return { error: "Failed to determine sort order: " + maxSortOrderError.message };
+    }
+
+    const currentMax = maxSortOrder?.sort_order || 0;
+    finalSortOrder = Math.ceil((currentMax + 1) / 10) * 10;
+    if (finalSortOrder === 0) finalSortOrder = 10;
   }
 
-  if (existingSortOrders && existingSortOrders.length > 0) {
-    return {
-      error: `Sort order ${sortOrder} is already taken in the ${column} column`,
-    };
-  }
 
   try {
     const insertData = {
       type,
       column,
-      sort_order: sortOrder,
+      sort_order: finalSortOrder,
       label,
       db_category: dbCategory,
       category_key: categoryKey,
@@ -1317,14 +1314,11 @@ export async function updateServiceCategory(
   const serviceId = formData.get("serviceId") as string;
   const type = formData.get("type") as string;
   const column = formData.get("column") as string;
-  const sortOrder = parseInt(formData.get("sortOrder") as string);
   const dependsOn = formData.get("dependsOn") as string;
 
   // Validate required fields
-  if (!serviceId || !type || !column || isNaN(sortOrder)) {
-    return {
-      error: "All fields are required and sort order must be a valid number",
-    };
+  if (!serviceId || !type || !column) {
+    return { error: "Service ID, Type, and Column are required." };
   }
 
   // Validate type
@@ -1341,31 +1335,10 @@ export async function updateServiceCategory(
     };
   }
 
-  // Check if sort order is unique within the column, excluding the current record
-  const { data: existingSortOrders, error: sortOrderError } = await supabase
-    .from("ServiceCategories")
-    .select("sort_order, id")
-    .eq("column", column)
-    .eq("sort_order", sortOrder)
-    .neq("id", serviceId);
-
-  if (sortOrderError) {
-    return {
-      error: "Failed to validate sort order: " + sortOrderError.message,
-    };
-  }
-
-  if (existingSortOrders && existingSortOrders.length > 0) {
-    return {
-      error: `Sort order ${sortOrder} is already taken in the ${column} column`,
-    };
-  }
-
   try {
     const updateData = {
       type,
       column,
-      sort_order: sortOrder,
       depends_on: dependsOn || null,
     };
 

@@ -128,16 +128,15 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
   const watchedHasServiceCategory = form.watch("hasServiceCategory");
 
   // Load available sort orders when component mounts
-  useEffect(() => {
-    loadAvailableSortOrders();
-  }, []);
+  useEffect(() => { loadAvailableSortOrders(); }, []);
 
   // Update available sort orders when column changes
   useEffect(() => {
     if (watchedColumn) {
-      updateAvailableSortOrders();
+      const lowestOrder = availableSortOrders[watchedColumn]?.[0];
+      if (lowestOrder) form.setValue("sortOrder", lowestOrder);
     }
-  }, [watchedColumn]);
+  }, [watchedColumn, availableSortOrders, form]);
 
   const loadAvailableSortOrders = async () => {
     try {
@@ -165,20 +164,6 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
       toast.error("Creation Failed", { description: state.error });
     }
   }, [state]);
-
-  const updateAvailableSortOrders = async () => {
-    if (!watchedColumn) return;
-
-    try {
-      const orders = await getAvailableSortOrders(watchedColumn);
-      setAvailableSortOrders((prev) => ({
-        ...prev,
-        [watchedColumn]: orders,
-      }));
-    } catch (error) {
-      console.error("Error updating available sort orders:", error);
-    }
-  };
 
   const onSubmit = (data: z.infer<typeof formSchema>) => {
     const formData = new FormData();
@@ -432,37 +417,6 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
                   </FormItem>
                 )}
               />
-
-              {watchedColumn && (
-                <FormField
-                  control={form.control}
-                  name="sortOrder"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sort Order</FormLabel>
-                      <Select
-                        onValueChange={(value) => field.onChange(parseInt(value))}
-                        value={field.value?.toString()}
-                        disabled={isPending}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select sort order" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {availableSortOrders[watchedColumn]?.map((order) => (
-                            <SelectItem key={order} value={order.toString()}>
-                              {order}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
 
               <FormField
                 control={form.control}

@@ -53,15 +53,6 @@ const formSchema = z.object({
   hasServiceCategory: z.boolean().default(false),
   type: z.enum(["ExclusiveDropdown", "AddOnDropdown"]).optional(),
   column: z.enum(["left", "right", "full"]).optional(),
-  sortOrder: z.coerce
-    .number()
-    .int({ message: "Sort order must be an integer" })
-    .min(10, { message: "Sort order must be at least 10" })
-    .max(100, { message: "Sort order must be at most 100" })
-    .refine((val) => val % 10 === 0, {
-      message: "Sort order must be a multiple of 10"
-    })
-    .optional(),
   dependsOn: z.string().optional(),
 }).refine((data) => {
   if (data.hasServiceCategory) {
@@ -69,7 +60,7 @@ const formSchema = z.object({
   }
   return true;
 }, {
-  message: "Type, column, and sort order are required when service category is enabled",
+  message: "Type and column are required when service category is enabled",
   path: ["type"],
 });
 
@@ -89,11 +80,6 @@ export function EditServiceDialog({
   onSuccess,
 }: EditServiceDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [availableSortOrders, setAvailableSortOrders] = useState<{
-    left: number[];
-    right: number[];
-    full: number[];
-  }>({ left: [], right: [], full: [] });
   const [existingServiceCategory, setExistingServiceCategory] = useState<any>(null);
   const [allServices, setAllServices] = useState<Service[]>([]);
 
@@ -106,7 +92,6 @@ export function EditServiceDialog({
       hasServiceCategory: false,
       type: undefined,
       column: undefined,
-      sortOrder: undefined,
       dependsOn: "",
     },
   });
@@ -121,13 +106,6 @@ export function EditServiceDialog({
     }
   }, [isOpen, service.id]);
 
-  // Update available sort orders when column changes
-  useEffect(() => {
-    if (watchedColumn) {
-      updateAvailableSortOrders();
-    }
-  }, [watchedColumn]);
-
   const loadServiceCategoryData = async () => {
     try {
       // Load existing service category
@@ -139,22 +117,8 @@ export function EditServiceDialog({
         form.setValue("hasServiceCategory", true);
         form.setValue("type", existingCategory.type);
         form.setValue("column", existingCategory.column);
-        form.setValue("sortOrder", existingCategory.sort_order);
         form.setValue("dependsOn", existingCategory.depends_on || "");
       }
-
-      // Load available sort orders for all columns
-      const [leftOrders, rightOrders, fullOrders] = await Promise.all([
-        getAvailableSortOrders("left"),
-        getAvailableSortOrders("right"),
-        getAvailableSortOrders("full"),
-      ]);
-
-      setAvailableSortOrders({
-        left: leftOrders,
-        right: rightOrders,
-        full: fullOrders,
-      });
 
       // Load all services for depends_on dropdown
       // You might want to pass this as a prop or fetch it differently
@@ -162,20 +126,6 @@ export function EditServiceDialog({
     } catch (error) {
       console.error("Error loading service category data:", error);
       toast.error("Failed to load service category data");
-    }
-  };
-
-  const updateAvailableSortOrders = async () => {
-    if (!watchedColumn) return;
-
-    try {
-      const orders = await getAvailableSortOrders(watchedColumn);
-      setAvailableSortOrders(prev => ({
-        ...prev,
-        [watchedColumn]: orders
-      }));
-    } catch (error) {
-      console.error("Error updating available sort orders:", error);
     }
   };
 
@@ -202,12 +152,11 @@ export function EditServiceDialog({
 
       // Handle service category logic
       if (values.hasServiceCategory) {
-        if (values.type && values.column && values.sortOrder) {
+        if (values.type && values.column) {
           const categoryFormData = new FormData();
           categoryFormData.append("serviceId", String(service.id));
           categoryFormData.append("type", values.type);
           categoryFormData.append("column", values.column);
-          categoryFormData.append("sortOrder", String(values.sortOrder));
           categoryFormData.append("dependsOn", values.dependsOn || "");
 
           let categoryResult;
@@ -376,41 +325,6 @@ export function EditServiceDialog({
                     </FormItem>
                   )}
                 />
-
-                {watchedColumn && (
-                  <FormField
-                    control={form.control}
-                    name="sortOrder"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Sort Order</FormLabel>
-                        <Select
-                          onValueChange={(value) => field.onChange(parseInt(value))}
-                          value={field.value?.toString()}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select sort order" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {existingServiceCategory && existingServiceCategory.sort_order && (
-                              <SelectItem value={existingServiceCategory.sort_order.toString()}>
-                                {existingServiceCategory.sort_order} (Current)
-                              </SelectItem>
-                            )}
-                            {availableSortOrders[watchedColumn]?.map((order) => (
-                              <SelectItem key={order} value={order.toString()}>
-                                {order}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
 
                 <FormField
                   control={form.control}

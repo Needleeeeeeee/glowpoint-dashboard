@@ -21,7 +21,7 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
   const { data: currentUserProfile } = await supabase
     .from("Profiles")
     .select("isAdmin")
-    .eq("email", user?.email)
+    .eq("id", user?.id)
     .single();
 
   const isCurrentUserAdmin = currentUserProfile?.isAdmin || false;

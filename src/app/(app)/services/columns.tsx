@@ -89,7 +89,6 @@ export const getColumns = (
     }
   );
 
-  // Add actions column, but with conditional items
   columns.push({
     id: "actions",
     size: 80,
