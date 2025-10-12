@@ -9,38 +9,42 @@ import EditUsersWrapper from "@/components/EditUsersWrapper";
 import { createClient } from "@/utils/supabase/server";
 import EditDetailsWrapper from "@/components/EditDetailsWrapper";
 
-const SingleUserPage = async ({ params }: { params: { username: string } }) => {
-    const { username } = await Promise.resolve(params);
+export default async function SingleUserPage({
+  params,
+}: {
+  params: { username: string };
+}) {
+  const { username } = params;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // Check if the currently logged-in user is an admin
-  const { data: currentUserProfile } = await supabase
-    .from("Profiles")
-    .select("isAdmin")
-    .eq("id", user?.id)
-    .single();
-  const isCurrentUserAdmin = currentUserProfile?.isAdmin || false;
-
-  // Fetch the profile of the user whose page is being viewed
-  const { data: viewedUserProfile, error: profileError } = await supabase
-    .from("Profiles")
-    .select("id, username, email, phone, location, isAdmin, bio, avatar_url")
-    .eq("username", username)
-    .single();
+  // Fetch the logged-in user and the viewed profile concurrently
+  const [
+    { data: { user: loggedInUser } },
+    { data: viewedUserProfile, error: profileError },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase
+      .from("Profiles")
+      .select("id, username, email, phone, location, isAdmin, bio, avatar_url")
+      .eq("username", username)
+      .single(),
+  ]);
 
   if (profileError || !viewedUserProfile) {
     return <div>User not found.</div>;
   }
 
+  // Check if the currently logged-in user is an admin
+  const { data: currentUserProfile } = loggedInUser
+    ? await supabase.from("Profiles").select("isAdmin").eq("id", loggedInUser.id).single()
+    : { data: null };
+  const isCurrentUserAdmin = currentUserProfile?.isAdmin || false;
+
   // Fetch MFA factors for the logged-in user
   const { data: mfaData } = await supabase.auth.mfa.listFactors();
   const factors = mfaData?.all ?? [];
 
-  const isOwnProfile = user?.id === viewedUserProfile.id;
+  const isOwnProfile = loggedInUser?.id === viewedUserProfile.id;
 
   // An admin can edit any profile, or a user can edit their own.
   const canEdit = isOwnProfile || isCurrentUserAdmin;
@@ -137,6 +141,4 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
       </div>
     </div>
   );
-};
-
-export default SingleUserPage;
+}
