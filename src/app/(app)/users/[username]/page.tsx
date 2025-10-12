@@ -36,6 +36,10 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
     return <div>User not found.</div>;
   }
 
+  // Fetch MFA factors for the logged-in user
+  const { data: mfaData } = await supabase.auth.mfa.listFactors();
+  const factors = mfaData?.all ?? [];
+
   const isOwnProfile = user?.id === viewedUserProfile.id;
 
   // An admin can edit any profile, or a user can edit their own.
@@ -104,7 +108,7 @@ const SingleUserPage = async ({ params }: { params: { username: string } }) => {
                   <SheetTrigger asChild>
                     <Button variant="outline">Edit Details</Button>
                   </SheetTrigger>
-                  <EditDetailsWrapper />
+                  <EditDetailsWrapper userProfile={viewedUserProfile} factors={factors} />
                 </Sheet>
               )}
             </div>

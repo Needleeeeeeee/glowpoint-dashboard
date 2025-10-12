@@ -1,3 +1,4 @@
+"use client"
 import { createClient } from "@/utils/supabase/server";
 import {
   SheetContent,
@@ -6,45 +7,20 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import EditDetailsForm from "./EditDetailsForm";
-import type { Factor } from "@supabase/auth-js";
+import { Factor } from "@supabase/auth-js";
 
 type UserProfile = {
   id: string;
   username: string | null;
+  email: string | null;
+  phone: string | null;
+  location: string | null;
+  isAdmin: boolean;
   bio: string | null;
   avatar_url: string | null;
 };
 
-export default async function EditDetailsWrapper() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return (
-      <SheetContent>
-        <p>You must be logged in to edit your profile.</p>
-      </SheetContent>
-    );
-  }
-
-  const { data: userProfile, error } = await supabase
-    .from("Profiles")
-    .select("id, username, bio, avatar_url, email")
-    .eq("email", user.email)
-    .single();
-
-  if (error || !userProfile) {
-    return (
-      <SheetContent>
-        <p>Could not load profile data.</p>
-      </SheetContent>
-    );
-  }
-
-  const { data: mfaData } = await supabase.auth.mfa.listFactors();
-  const factors = mfaData?.all ?? [];
+const EditDetailsWrapper = ({ userProfile, factors }: { userProfile: UserProfile,factors: Factor[] }) =>  {
 
   return (
     <SheetContent>
@@ -54,7 +30,8 @@ export default async function EditDetailsWrapper() {
           Update your bio, profile picture, or connect accounts.
         </SheetDescription>
       </SheetHeader>
-      <EditDetailsForm userProfile={userProfile as UserProfile} factors={factors} />
+      <EditDetailsForm userProfile={userProfile} factors={factors} />
     </SheetContent>
   );
 }
+export default EditDetailsWrapper;
