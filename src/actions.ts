@@ -354,9 +354,17 @@ export const updateUserProfileDetails = async (
 export const enrollMfa = async () => {
   const supabase = await createClient();
 
+  // Get the current user's email for the friendly name
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "User not authenticated" };
+  }
+
   const { data, error } = await supabase.auth.mfa.enroll({
     factorType: 'totp',
-    issuer: 'Glowpoint', // Ensure no special characters or spaces that could break the otpauth:// URI
+    issuer: 'Glowpoint',
+    friendlyName: user.email || 'Glowpoint Account', // Add a friendly name
   });
 
   if (error) {
@@ -369,9 +377,13 @@ export const enrollMfa = async () => {
   }
 
   const qrCode = data.totp.qr_code;
+  const secret = data.totp.secret; // Get the secret too
+  const uri = data.totp.uri; // Get the URI
   const factorId = data.id;
 
-  return { data: { qr_code: qrCode, factor_id: factorId } };
+  console.log('MFA Enrollment Data:', { secret, uri }); // Debug log
+
+  return { data: { qr_code: qrCode, factor_id: factorId, secret, uri } };
 };
 
 export const challengeAndVerifyMfa = async (

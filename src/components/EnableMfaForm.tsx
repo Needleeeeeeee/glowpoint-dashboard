@@ -16,8 +16,11 @@ export function EnableMfaForm({
   const router = useRouter();
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [factorId, setFactorId] = useState<string | null>(null);
+  const [secret, setSecret] = useState<string | null>(null);
+  const [uri, setUri] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showSecret, setShowSecret] = useState(false);
 
   const [verifyState, verifyAction, isVerifyPending] = useActionState(
     challengeAndVerifyMfa,
@@ -34,6 +37,9 @@ export function EnableMfaForm({
       } else if (result.data) {
         setQrCode(result.data.qr_code);
         setFactorId(result.data.factor_id);
+        setSecret(result.data.secret);
+        setUri(result.data.uri);
+        console.log('Enrollment data received:', result.data); // Debug
       }
       setIsLoading(false);
     }
@@ -76,6 +82,29 @@ export function EnableMfaForm({
       <p className="text-sm text-muted-foreground text-center">
         Scan this with an authenticator app like Google Authenticator or Authy.
       </p>
+
+      {/* Manual entry option */}
+      <div className="text-center">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowSecret(!showSecret)}
+        >
+          {showSecret ? "Hide" : "Can't scan? Enter manually"}
+        </Button>
+      </div>
+
+      {showSecret && secret && (
+        <div className="bg-muted p-3 rounded-md">
+          <p className="text-xs text-muted-foreground mb-1">Secret Key:</p>
+          <code className="text-sm break-all">{secret}</code>
+          <p className="text-xs text-muted-foreground mt-2">
+            Enter this key manually in your authenticator app if you can't scan the QR code.
+          </p>
+        </div>
+      )}
+
       <form action={verifyAction} className="space-y-4">
         <input type="hidden" name="factorId" value={factorId} />
         <div>
