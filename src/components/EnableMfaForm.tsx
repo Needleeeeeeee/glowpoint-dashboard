@@ -71,10 +71,7 @@ export function EnableMfaForm({
   return (
     <div className="space-y-4">
       <div className="flex justify-center">
-        <img
-          src={`data:image/svg+xml;utf-8,${encodeURIComponent(qrCode)}`}
-          alt="QR Code for 2FA"
-        />
+        <div dangerouslySetInnerHTML={{ __html: qrCode }} />
       </div>
       <p className="text-sm text-muted-foreground text-center">
         Scan this with an authenticator app like Google Authenticator or Authy.
