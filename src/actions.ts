@@ -351,6 +351,31 @@ export const updateUserProfileDetails = async (
   return { success: "Profile updated successfully!", data: updatedProfile };
 };
 
+export const cleanupUnverifiedMfa = async () => {
+  const supabase = await createClient();
+
+  // List all factors
+  const { data: factorData, error: factorError } = await supabase.auth.mfa.listFactors();
+
+  if (factorError) {
+    console.error("MFA list error:", factorError);
+    return { error: factorError.message };
+  }
+
+  // Find unverified factors
+  const unverifiedFactors = factorData?.all.filter(f => f.status === 'unverified') || [];
+
+  // Unenroll each unverified factor
+  for (const factor of unverifiedFactors) {
+    const { error } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+    if (error) {
+      console.error(`Failed to unenroll factor ${factor.id}:`, error);
+    }
+  }
+
+  return { success: true };
+};
+
 export const enrollMfa = async () => {
   const supabase = await createClient();
 
@@ -361,10 +386,19 @@ export const enrollMfa = async () => {
     return { error: "User not authenticated" };
   }
 
+  // First, clean up any unverified factors
+  const { data: factorData } = await supabase.auth.mfa.listFactors();
+  const unverifiedFactors = factorData?.all.filter(f => f.status === 'unverified') || [];
+
+  for (const factor of unverifiedFactors) {
+    await supabase.auth.mfa.unenroll({ factorId: factor.id });
+  }
+
+  // Now try to enroll
   const { data, error } = await supabase.auth.mfa.enroll({
     factorType: 'totp',
     issuer: 'Glowpoint',
-    friendlyName: user.email || 'Glowpoint Account', // Add a friendly name
+    friendlyName: user.email || 'Glowpoint Account',
   });
 
   if (error) {
@@ -377,15 +411,14 @@ export const enrollMfa = async () => {
   }
 
   const qrCode = data.totp.qr_code;
-  const secret = data.totp.secret; // Get the secret too
-  const uri = data.totp.uri; // Get the URI
+  const secret = data.totp.secret;
+  const uri = data.totp.uri;
   const factorId = data.id;
 
-  console.log('MFA Enrollment Data:', { secret, uri }); // Debug log
+  console.log('MFA Enrollment Data:', { secret, uri });
 
   return { data: { qr_code: qrCode, factor_id: factorId, secret, uri } };
 };
-
 export const challengeAndVerifyMfa = async (
   prevState: any,
   formData: FormData

@@ -21,6 +21,7 @@ export function EnableMfaForm({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showSecret, setShowSecret] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   const [verifyState, verifyAction, isVerifyPending] = useActionState(
     challengeAndVerifyMfa,
@@ -33,7 +34,12 @@ export function EnableMfaForm({
       setError(null);
       const result = await enrollMfa();
       if (result.error) {
-        setError(result.error);
+        // Check if it's a "factor already exists" error
+        if (result.error.includes("already exists")) {
+          setError("You have an incomplete 2FA setup. Please close this dialog and try again, or contact support if the issue persists.");
+        } else {
+          setError(result.error);
+        }
       } else if (result.data) {
         setQrCode(result.data.qr_code);
         setFactorId(result.data.factor_id);
@@ -44,7 +50,7 @@ export function EnableMfaForm({
       setIsLoading(false);
     }
     getEnrollmentData();
-  }, []);
+  }, [retryCount]);
 
   useEffect(() => {
     if (verifyState?.success) {
@@ -63,7 +69,20 @@ export function EnableMfaForm({
   }
 
   if (error) {
-    return <p className="text-destructive text-center">{error}</p>;
+    return (
+      <div className="text-center space-y-4">
+        <p className="text-destructive">{error}</p>
+        <Button
+          onClick={() => {
+            setRetryCount(prev => prev + 1);
+            setError(null);
+          }}
+          variant="outline"
+        >
+          Try Again
+        </Button>
+      </div>
+    );
   }
 
   if (!qrCode || !factorId) {
@@ -77,7 +96,6 @@ export function EnableMfaForm({
   return (
     <div className="space-y-4">
       <div className="flex justify-center bg-white p-4 rounded-lg">
-        {/* Use img tag for data URI */}
         <img
           src={qrCode}
           alt="QR Code for 2FA"
@@ -88,7 +106,6 @@ export function EnableMfaForm({
         Scan this with an authenticator app like Google Authenticator or Authy.
       </p>
 
-      {/* Manual entry option */}
       <div className="text-center">
         <Button
           type="button"
