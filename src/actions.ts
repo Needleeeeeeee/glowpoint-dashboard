@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
@@ -268,9 +269,14 @@ export const updateUserPassword = async (
     return { message: `Error: ${error.message}`, error: true };
   }
 
-  // It's good practice to sign out all sessions when the password changes.
-  await supabase.auth.signOut({ scope: "global" });
-  redirect("/login?message=Password updated successfully. Please log in again.");
+  const requestHeaders = headers();
+  const referer = requestHeaders.get("referer");
+  const requestUrl = new URL(referer ?? (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"));
+  const next = requestUrl.searchParams.get("next") || "/home";
+
+  revalidatePath("/", "layout");
+  revalidatePath(next, "page");
+  redirect(next);
 };
 
 export const updateUserProfileDetails = async (
