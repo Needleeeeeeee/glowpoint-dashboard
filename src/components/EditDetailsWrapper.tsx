@@ -15,7 +15,10 @@ type UserProfile = {
   avatar_url: string | null;
 };
 
-export default async function EditDetailsWrapper() {
+interface EditDetailsWrapperProps {
+}
+
+export default async function EditDetailsWrapper({}: EditDetailsWrapperProps) {
   const supabase = await createClient();
   const {
     data: { user },
