@@ -2365,3 +2365,35 @@ export const getQueueStats = async (): Promise<
     };
   }
 };
+
+export const clearActivity = async (
+  ids: string[] | "all"
+): Promise<{ success?: boolean; error?: string }> => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Authentication required." };
+  }
+
+  let query = supabase
+    .from("Appointments")
+    .update({ is_cleared: true })
+    .eq("claimed_by_id", user.id);
+
+  if (Array.isArray(ids)) {
+    query = query.in("id", ids);
+  }
+
+  const { error } = await query;
+
+  if (error) {
+    console.error("Error clearing activity:", error);
+    return { error: "Failed to clear activity." };
+  }
+
+  revalidatePath("/(app)/home", "page");
+  return { success: true };
+};

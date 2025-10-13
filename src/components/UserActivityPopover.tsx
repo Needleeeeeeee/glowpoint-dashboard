@@ -7,6 +7,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Card, CardDescription, CardHeader, CardTitle } from "./ui/card";
 
 type UserProfile = {
@@ -22,6 +23,7 @@ interface UserActivityPopoverProps {
 
 export function UserActivityPopover({ children, user }: UserActivityPopoverProps) {
   const [open, setOpen] = useState(false);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   if (!user) {
     return <>{children}</>;
@@ -34,7 +36,12 @@ export function UserActivityPopover({ children, user }: UserActivityPopoverProps
           {children}
         </div>
       </PopoverTrigger>
-      <PopoverContent className="w-72" side="right" align="start" alignOffset={10}>
+      <PopoverContent
+        className="w-72"
+        side={isMobile ? "top" : "right"}
+        align={isMobile ? "center" : "start"}
+        alignOffset={isMobile ? 0 : 10}
+      >
         <div className="flex items-center gap-4">
           <Avatar className="size-12">
             <AvatarImage src={user.avatar_url ?? undefined} />

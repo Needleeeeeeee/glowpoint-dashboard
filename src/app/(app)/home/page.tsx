@@ -331,23 +331,10 @@ export default async function HomePage({
           </>
         )}
 
-        {/* Recent Activity */}
-        <Card className={isAdmin ? "lg:col-span-1" : "lg:col-span-2"}>
-          <CardHeader className="p-4 md:p-6">
-            <CardTitle className="text-lg md:text-xl">
-              Recent Activity
-            </CardTitle>
-            <CardDescription className="text-sm md:text-base">
-              A feed of recent appointment claims by employees.
-            </CardDescription>
-            <ActivitySearch />
-          </CardHeader>
-          <CardContent className="p-4 md:p-6 pt-0">
-            <RecentActivity />
-          </CardContent>
-        </Card>
+        <div className={isAdmin ? "lg:col-span-1" : "lg:col-span-2"}>
+          <RecentActivity />
+        </div>
 
-        {/* Recent Feedback */}
         <Card className="lg:col-span-2">
           <CardHeader className="p-4 md:p-6">
             <CardTitle className="text-lg md:text-xl">
