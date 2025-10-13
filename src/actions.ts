@@ -535,44 +535,6 @@ export async function sendAppointmentReminders(): Promise<{
   };
 }
 
-export const linkGoogleAccount = async () => {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "You must be logged in to link an account." };
-  }
-
-  // Fetch the user's profile to get their username
-  const { data: profile } = await supabase
-    .from("Profiles")
-    .select("username")
-    .eq("id", user.id)
-    .single();
-
-  const username = profile?.username || user.user_metadata?.username;
-  const redirectUrl = username
-    ? `${process.env.NEXT_PUBLIC_SITE_URL}/users/${username}`
-    : `${process.env.NEXT_PUBLIC_SITE_URL}/home`;
-
-  const { data, error } = await supabase.auth.linkIdentity({
-    provider: "google",
-    options: {
-      redirectTo: redirectUrl,
-    },
-  });
-
-  if (error) {
-    console.error("Google link error:", error);
-    return { error: "Could not link Google account." };
-  }
-
-  if (data.url) {
-    redirect(data.url);
-  }
-};
 
 export const signInWithGoogle = async () => {
   const supabase = await createClient();

@@ -160,18 +160,6 @@ export default function EditDetailsForm({ userProfile, factors }: EditDetailsFor
           </Dialog>
         )}
       </div>
-
-      <Separator />
-
-      <div className="space-y-4">
-        <h3 className="font-semibold">Linked Accounts</h3>
-        <form action={linkGoogleAccount}>
-          <Button variant="outline" className="w-full flex items-center gap-2">
-            <GoogleIcon />
-            Connect with Google
-          </Button>
-        </form>
-      </div>
     </div>
   );
 }
