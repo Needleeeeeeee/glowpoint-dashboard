@@ -356,7 +356,7 @@ export const enrollMfa = async () => {
 
   const { data, error } = await supabase.auth.mfa.enroll({
     factorType: 'totp',
-    issuer: 'Glowpoint',
+    issuer: 'Glowpoint', // Ensure no special characters or spaces that could break the otpauth:// URI
   });
 
   if (error) {
