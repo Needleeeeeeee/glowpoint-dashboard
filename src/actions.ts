@@ -67,7 +67,7 @@ export async function deactivateUsers(userIds: string[]) {
 
   const rpcErrors = [];
   for (const userId of userIds) {
-    const { error } = await supabase.rpc('deactivate_user', {
+    const { error } = await supabase.rpc("deactivate_user", {
       p_user_id: userId,
     });
 
@@ -78,9 +78,9 @@ export async function deactivateUsers(userIds: string[]) {
   }
 
   if (rpcErrors.length > 0) {
-    console.error('Errors deactivating users via RPC:', rpcErrors);
+    console.error("Errors deactivating users via RPC:", rpcErrors);
     return {
-      error: 'Failed to deactivate some users. Please check server logs.',
+      error: "Failed to deactivate some users. Please check server logs.",
     };
   }
 
@@ -121,7 +121,10 @@ export async function reactivateUser(userId: string) {
   if (authError) {
     console.error(`Error reactivating user ${userId} in Auth:`, authError);
     // Rollback the profile change
-    await supabase.from("Profiles").update({ is_active: false }).eq("id", userId);
+    await supabase
+      .from("Profiles")
+      .update({ is_active: false })
+      .eq("id", userId);
     return { error: "Failed to reactivate user in authentication service." };
   }
 
@@ -172,10 +175,12 @@ export const updateUserProfile = async (prevState: any, formData: FormData) => {
   );
 
   // Update the user in auth.users
-  const { error: authError } =
-    await supabaseAdmin.auth.admin.updateUserById(userIdToUpdate, {
+  const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+    userIdToUpdate,
+    {
       email: newEmail,
-    });
+    }
+  );
 
   // Update the profile in Supabase
   const { error: profileError } = await supabase
@@ -348,8 +353,10 @@ export const updateUserProfileDetails = async (
 
 export const enrollMfa = async () => {
   const supabase = await createClient();
+
   const { data, error } = await supabase.auth.mfa.enroll({
-    factorType: "totp",
+    factorType: 'totp',
+    issuer: 'Glowpoint',
   });
 
   if (error) {
@@ -481,9 +488,12 @@ export async function sendAppointmentReminders(): Promise<{
     .filter((r) => !r.success)
     .map((r) => r.error || "Unknown email error");
 
-  return { success: errorMessages.length === 0, sent: sentCount, errors: errorMessages };
+  return {
+    success: errorMessages.length === 0,
+    sent: sentCount,
+    errors: errorMessages,
+  };
 }
-
 
 export const verifyMfaAndCompleteLogin = async (formData: FormData) => {
   const supabase = await createClient();
@@ -655,32 +665,38 @@ export const createUserProfile = async (prevState: any, formData: FormData) => {
   return { success: "User created successfully!" };
 };
 
-const CreateServiceSchema = z.object({
-  service: z
-    .string()
-    .min(2, { message: "Service name must be at least 2 characters." }),
-  price: z.coerce
-    .number()
-    .min(0, { message: "Price must be a positive number." }),
-  category: z
-    .string()
-    .min(2, { message: "Category must be at least 2 characters." }),
-  hasServiceCategory: z.boolean(),
-  type: z.string().optional(),
-  column: z.string().optional(),
-  sortOrder: z.coerce.number().optional(),
-  label: z.string().optional(),
-  dbCategory: z.string().optional(),
-  categoryKey: z.string().optional(),
-  dependsOn: z.string().optional(),
-}).refine((data) => {
-  if (data.hasServiceCategory) {
-    return data.label && data.dbCategory && data.categoryKey;
-  }
-  return true;
-}, {
-  message: "Label, DB Category, and Category Key are required when service category is enabled",
-});
+const CreateServiceSchema = z
+  .object({
+    service: z
+      .string()
+      .min(2, { message: "Service name must be at least 2 characters." }),
+    price: z.coerce
+      .number()
+      .min(0, { message: "Price must be a positive number." }),
+    category: z
+      .string()
+      .min(2, { message: "Category must be at least 2 characters." }),
+    hasServiceCategory: z.boolean(),
+    type: z.string().optional(),
+    column: z.string().optional(),
+    sortOrder: z.coerce.number().optional(),
+    label: z.string().optional(),
+    dbCategory: z.string().optional(),
+    categoryKey: z.string().optional(),
+    dependsOn: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.hasServiceCategory) {
+        return data.label && data.dbCategory && data.categoryKey;
+      }
+      return true;
+    },
+    {
+      message:
+        "Label, DB Category, and Category Key are required when service category is enabled",
+    }
+  );
 
 export async function createService(prevState: any, formData: FormData) {
   const supabase = await createClient();
@@ -725,10 +741,11 @@ export async function createService(prevState: any, formData: FormData) {
     };
   }
 
-  let { service, category, price, hasServiceCategory, ...categoryData } = validatedFields.data;
+  let { service, category, price, hasServiceCategory, ...categoryData } =
+    validatedFields.data;
 
-  if (category === 'other') {
-    category = formData.get('newCategory') as string;
+  if (category === "other") {
+    category = formData.get("newCategory") as string;
   }
 
   try {
@@ -751,25 +768,48 @@ export async function createService(prevState: any, formData: FormData) {
     }
 
     if (hasServiceCategory) {
-      const { type, column, sortOrder, label, dbCategory, categoryKey, dependsOn } = categoryData;
+      const {
+        type,
+        column,
+        sortOrder,
+        label,
+        dbCategory,
+        categoryKey,
+        dependsOn,
+      } = categoryData;
 
+<<<<<<< HEAD
       if (!type || !column || !label || !dbCategory || !categoryKey || sortOrder === undefined || sortOrder === null) {
+=======
+      if (
+        !type ||
+        !column ||
+        !label ||
+        !dbCategory ||
+        !categoryKey ||
+        sortOrder === undefined
+      ) {
+>>>>>>> c0f549a (mfa fixes)
         return {
-          error: "Service was created, but category creation failed: Missing required category fields.",
+          error:
+            "Service was created, but category creation failed: Missing required category fields.",
         };
       }
 
       const { error: categoryError } = await supabase
         .from("ServiceCategories")
-        .upsert({
-          type,
-          column,
-          sort_order: sortOrder,
-          label,
-          db_category: dbCategory,
-          category_key: categoryKey,
-          depends_on: dependsOn || null,
-        }, { onConflict: 'db_category' });
+        .upsert(
+          {
+            type,
+            column,
+            sort_order: sortOrder,
+            label,
+            db_category: dbCategory,
+            category_key: categoryKey,
+            depends_on: dependsOn || null,
+          },
+          { onConflict: "db_category" }
+        );
 
       if (categoryError) {
         console.error("Error creating service category:", categoryError);
@@ -898,10 +938,12 @@ export const deleteServices = async (serviceIds: number[]) => {
       .in("id", serviceIds);
 
     if (fetchError) {
-      return { error: `Failed to fetch services for deletion: ${fetchError.message}` };
+      return {
+        error: `Failed to fetch services for deletion: ${fetchError.message}`,
+      };
     }
 
-    const categoriesToDelete = servicesToDelete.map(s => s.category);
+    const categoriesToDelete = servicesToDelete.map((s) => s.category);
 
     const { error: categoryDeleteError } = await supabase
       .from("ServiceCategories")
@@ -910,7 +952,10 @@ export const deleteServices = async (serviceIds: number[]) => {
 
     if (categoryDeleteError) {
       // Log the error but don't block service deletion, as the category might not exist.
-      console.warn("Could not delete service category, it might not exist:", categoryDeleteError.message);
+      console.warn(
+        "Could not delete service category, it might not exist:",
+        categoryDeleteError.message
+      );
     }
 
     const { error: deleteError } = await supabase
@@ -1223,13 +1268,11 @@ export const unclaimAppointment = async (appointmentId: string) => {
   return { success: "Appointment unclaimed." };
 };
 
-export async function createServiceCategory(
-  prevState: any,
-  categoryData: any
-) {
+export async function createServiceCategory(prevState: any, categoryData: any) {
   const supabase = await createClient();
 
-  const { type, column, sortOrder, label, dbCategory, categoryKey, dependsOn } = categoryData;
+  const { type, column, sortOrder, label, dbCategory, categoryKey, dependsOn } =
+    categoryData;
 
   // Validate required fields
   if (!type || !column || !label || !dbCategory || !categoryKey) {
@@ -1286,7 +1329,7 @@ export async function createServiceCategory(
 
     const { error: insertError } = await supabase
       .from("ServiceCategories")
-      .upsert(insertData, { onConflict: 'db_category' });
+      .upsert(insertData, { onConflict: "db_category" });
 
     if (insertError) {
       return {
@@ -1435,8 +1478,9 @@ export async function getServiceCategories() {
   return data || [];
 }
 
-
-export const verifyAppointment = async (appointmentId: string): Promise<{ success?: string; error?: string }> => {
+export const verifyAppointment = async (
+  appointmentId: string
+): Promise<{ success?: string; error?: string }> => {
   const supabase = await createClient();
 
   // Check if the user is an admin
@@ -1445,24 +1489,24 @@ export const verifyAppointment = async (appointmentId: string): Promise<{ succes
     error: userError,
   } = await supabase.auth.getUser();
   if (userError || !user) {
-    return { error: 'Authentication required.' };
+    return { error: "Authentication required." };
   }
 
   const { data: profile, error: profileError } = await supabase
-    .from('Profiles')
-    .select('isAdmin')
-    .eq('id', user.id)
+    .from("Profiles")
+    .select("isAdmin")
+    .eq("id", user.id)
     .single();
 
   if (profileError || !profile?.isAdmin) {
-    return { error: 'Unauthorized: Admin access required.' };
+    return { error: "Unauthorized: Admin access required." };
   }
 
   // First, update the appointment status to 'verified'
   const { data: updatedAppointment, error: updateError } = await supabase
-    .from('Appointments')
-    .update({ status: 'verified' })
-    .eq('id', appointmentId)
+    .from("Appointments")
+    .update({ status: "verified" })
+    .eq("id", appointmentId)
     .select()
     .single();
 
@@ -1471,15 +1515,25 @@ export const verifyAppointment = async (appointmentId: string): Promise<{ succes
   }
 
   // Send immediate confirmation SMS
-  const confirmationSmsMessage = getSmsContent('confirmation', updatedAppointment);
-  const smsResult = await sendSms(updatedAppointment.Phone, confirmationSmsMessage);
+  const confirmationSmsMessage = getSmsContent(
+    "confirmation",
+    updatedAppointment
+  );
+  const smsResult = await sendSms(
+    updatedAppointment.Phone,
+    confirmationSmsMessage
+  );
 
   // Send immediate confirmation email
-  const emailResult = await sendBrevoEmail('confirmation', updatedAppointment);
+  const emailResult = await sendBrevoEmail("confirmation", updatedAppointment);
 
   // Calculate reminder time (2 hours before appointment)
-  const appointmentDateTime = new Date(`${updatedAppointment.Date}T${updatedAppointment.Time}`);
-  const reminderDateTime = new Date(appointmentDateTime.getTime() - 2 * 60 * 60 * 1000);
+  const appointmentDateTime = new Date(
+    `${updatedAppointment.Date}T${updatedAppointment.Time}`
+  );
+  const reminderDateTime = new Date(
+    appointmentDateTime.getTime() - 2 * 60 * 60 * 1000
+  );
 
   // Only schedule reminders if the appointment is more than 2 hours away
   let scheduledSmsResult = { success: true };
@@ -1487,28 +1541,50 @@ export const verifyAppointment = async (appointmentId: string): Promise<{ succes
 
   if (reminderDateTime > new Date()) {
     // Schedule reminder SMS
-    const reminderSmsMessage = getSmsContent('reminder', updatedAppointment);
+    const reminderSmsMessage = getSmsContent("reminder", updatedAppointment);
     // Format for SMS API: "Y-m-d H:i" format
     const smsSchedule = formatDateTimeForSMS(reminderDateTime);
-    scheduledSmsResult = await sendSms(updatedAppointment.Phone, reminderSmsMessage, smsSchedule);
+    scheduledSmsResult = await sendSms(
+      updatedAppointment.Phone,
+      reminderSmsMessage,
+      smsSchedule
+    );
 
     // Schedule reminder email
-    scheduledEmailResult = await sendBrevoEmail('reminder', updatedAppointment, reminderDateTime.toISOString());
+    scheduledEmailResult = await sendBrevoEmail(
+      "reminder",
+      updatedAppointment,
+      reminderDateTime.toISOString()
+    );
   }
 
   // Collect results
-  const results = [smsResult, emailResult, scheduledSmsResult, scheduledEmailResult];
-  const errors = results.filter(r => !r.success).map(r => r.error);
+  const results = [
+    smsResult,
+    emailResult,
+    scheduledSmsResult,
+    scheduledEmailResult,
+  ];
+  const errors = results.filter((r) => !r.success).map((r) => r.error);
 
   if (errors.length > 0) {
-    return { success: `Appointment verified, but some notifications failed: ${errors.join(', ')}` };
+    return {
+      success: `Appointment verified, but some notifications failed: ${errors.join(
+        ", "
+      )}`,
+    };
   }
 
-  revalidatePath('/'); // Revalidate the dashboard to reflect the change
-  return { success: 'Appointment verified. Confirmation and reminders for SMS/Email have been sent/scheduled.' };
+  revalidatePath("/"); // Revalidate the dashboard to reflect the change
+  return {
+    success:
+      "Appointment verified. Confirmation and reminders for SMS/Email have been sent/scheduled.",
+  };
 };
 
-export const rejectAppointment = async (appointmentId: string): Promise<{ success?: string; error?: string }> => {
+export const rejectAppointment = async (
+  appointmentId: string
+): Promise<{ success?: string; error?: string }> => {
   const supabase = await createClient();
 
   // Check if the user is an admin
@@ -1517,48 +1593,53 @@ export const rejectAppointment = async (appointmentId: string): Promise<{ succes
     error: userError,
   } = await supabase.auth.getUser();
   if (userError || !user) {
-    return { error: 'Authentication required.' };
+    return { error: "Authentication required." };
   }
 
   const { data: profile, error: profileError } = await supabase
-    .from('Profiles')
-    .select('isAdmin')
-    .eq('id', user.id)
+    .from("Profiles")
+    .select("isAdmin")
+    .eq("id", user.id)
     .single();
 
   if (profileError || !profile?.isAdmin) {
-    return { error: 'Unauthorized: Admin access required.' };
+    return { error: "Unauthorized: Admin access required." };
   }
 
   // Fetch the appointment to get details for the notification email
   const { data: appointmentToReject, error: fetchError } = await supabase
-    .from('Appointments')
-    .select('*')
-    .eq('id', appointmentId)
+    .from("Appointments")
+    .select("*")
+    .eq("id", appointmentId)
     .single();
 
   if (fetchError || !appointmentToReject) {
-    return { error: `Could not find appointment to reject: ${fetchError?.message}` };
+    return {
+      error: `Could not find appointment to reject: ${fetchError?.message}`,
+    };
   }
 
   // Update the appointment status to 'failed'
-  const { error: updateError } = await supabase.from('Appointments').update({ status: 'failed' }).eq('id', appointmentId);
+  const { error: updateError } = await supabase
+    .from("Appointments")
+    .update({ status: "failed" })
+    .eq("id", appointmentId);
   if (updateError) {
     return { error: `Failed to reject appointment: ${updateError.message}` };
   }
 
-  await sendBrevoEmail('cancellation', appointmentToReject);
-  revalidatePath('/');
-  return { success: 'Appointment has been rejected.' };
+  await sendBrevoEmail("cancellation", appointmentToReject);
+  revalidatePath("/");
+  return { success: "Appointment has been rejected." };
 };
 
 // Helper function to format date for SMS API
 function formatDateTimeForSMS(date: Date): string {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
@@ -1581,13 +1662,11 @@ function getSmsContent(smsType: string, appointment: any) {
 
   switch (smsType) {
     case "confirmation":
-      return `Glowpoint: Hello ${appointment.Name}! Your appointment on ${formatDate(
-        appointment.Date
-      )} at ${formatTime(
+      return `Glowpoint: Hello ${
+        appointment.Name
+      }! Your appointment on ${formatDate(appointment.Date)} at ${formatTime(
         appointment.Time
-      )} is confirmed! Remaining balance: P${(
-        appointment.Total || 0
-      ).toFixed(
+      )} is confirmed! Remaining balance: P${(appointment.Total || 0).toFixed(
         2
       )}. Please arrive on time. We look forward to seeing you!`;
     case "reminder":
@@ -1595,15 +1674,11 @@ function getSmsContent(smsType: string, appointment: any) {
         appointment.Time
       )}. Please be on time. See you soon! Don't forget to check https://glowpoint.org to leave your feedback after the appointment!`;
     case "now_serving":
-      return `Glowpoint: Hi! It's your turn soon! Your queue number is ${
-        appointment.position
-      }. Please proceed to the counter in 5-10 minutes.`;
+      return `Glowpoint: Hi! It's your turn soon! Your queue number is ${appointment.position}. Please proceed to the counter in 5-10 minutes.`;
     default:
       return "";
   }
 }
-
-
 
 async function sendSms(
   phone: string,
@@ -1802,8 +1877,11 @@ function getEmailContent(emailType: string, appointment: any) {
         textContent: `Appointment Reminder - Your beauty session is in 2 hours!\n\nDetails:\n- Today at: ${formatTime(
           appointment.Time
         )}\n- Services: ${servicesList}\n- Balance to pay: ₱${Math.max(
-          0, appointment.Total || 0
-        ).toFixed(2)}\n\nLocation: NSCI Building, Km. 37 Pulong Buhangin, Santa Maria, Bulacan\nContact: 09300784517\n\nPlease arrive on time! After 15 minutes of being late, the appointment may be considered void.`,
+          0,
+          appointment.Total || 0
+        ).toFixed(
+          2
+        )}\n\nLocation: NSCI Building, Km. 37 Pulong Buhangin, Santa Maria, Bulacan\nContact: 09300784517\n\nPlease arrive on time! After 15 minutes of being late, the appointment may be considered void.`,
       };
     case "cancellation":
       return {
@@ -1828,7 +1906,9 @@ function getEmailContent(emailType: string, appointment: any) {
           appointment.Name
         },\n\nYour appointment scheduled for ${formatDate(
           appointment.Date
-        )} at ${formatTime(appointment.Time)} has been cancelled.\n\nWe hope to see you again soon!`,
+        )} at ${formatTime(
+          appointment.Time
+        )} has been cancelled.\n\nWe hope to see you again soon!`,
       };
     case "reschedule":
       return {
@@ -1851,7 +1931,9 @@ function getEmailContent(emailType: string, appointment: any) {
           appointment.Name
         },\n\nYour appointment has been rescheduled to ${formatDate(
           appointment.Date
-        )} at ${formatTime(appointment.Time)}.\n\nWe look forward to seeing you!`,
+        )} at ${formatTime(
+          appointment.Time
+        )}.\n\nWe look forward to seeing you!`,
       };
     case "now_serving":
       return {
@@ -1862,12 +1944,8 @@ function getEmailContent(emailType: string, appointment: any) {
               <h1 style="color: #d97706; margin-bottom: 10px;">It's Your Turn!</h1>
             </div>
             <div style="background-color: white; padding: 25px; border-radius: 8px; border: 2px solid #fbbf24; text-align: center;">
-              <p style="font-size: 18px;">Hi ${
-                appointment.Name
-              }, your queue number is now being called!</p>
-              <p style="font-size: 48px; font-weight: bold; color: #d97706; margin: 20px 0;">#${
-                appointment.position
-              }</p>
+              <p style="font-size: 18px;">Hi ${appointment.Name}, your queue number is now being called!</p>
+              <p style="font-size: 48px; font-weight: bold; color: #d97706; margin: 20px 0;">#${appointment.position}</p>
               <p style="font-size: 18px;">Please proceed to the counter.</p>
             </div>
           </div>
@@ -1900,7 +1978,7 @@ async function sendBrevoEmail(
     },
     subject: emailContent.subject,
     htmlContent: emailContent.htmlContent,
-    textContent: emailContent.textContent
+    textContent: emailContent.textContent,
   };
 
   if (scheduleAt) {
@@ -1948,8 +2026,8 @@ export interface QueueEntry {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  email: string,
-  phone: string,
+  email: string;
+  phone: string;
 }
 
 export interface QueueSettings {
@@ -2091,7 +2169,9 @@ export const advanceQueue = async (): Promise<
 
     // Update positions and wait times for remaining entries
     // Filter out the user who was just served, if they are still in the list
-    const remainingQueue = activeQueue.filter(entry => entry.id !== userToServe?.id);
+    const remainingQueue = activeQueue.filter(
+      (entry) => entry.id !== userToServe?.id
+    );
 
     if (remainingQueue.length > 0) {
       const updates = remainingQueue.map((entry, index) => ({
