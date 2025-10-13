@@ -2359,5 +2359,3 @@ export const getQueueStats = async (): Promise<
     };
   }
 };
-  }
-};
