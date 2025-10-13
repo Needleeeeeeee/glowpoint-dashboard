@@ -564,6 +564,9 @@ export const signInWithGoogle = async () => {
     provider: "google",
     options: {
       redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/home`,
+      queryParams: {
+        api_key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      },
     },
   });
 
