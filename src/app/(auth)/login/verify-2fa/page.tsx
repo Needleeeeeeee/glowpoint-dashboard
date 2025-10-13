@@ -7,6 +7,9 @@ export default function Verify2FAPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
+  // Extract the next parameter from search params
+  const next = searchParams?.next as string | undefined;
+
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="bg-primary-foreground rounded-3xl p-6 w-96">
@@ -17,6 +20,9 @@ export default function Verify2FAPage({
           Enter the code from your authenticator app.
         </p>
         <form action={verifyMfaAndCompleteLogin} className="space-y-4">
+          {/* Hidden input to pass the next parameter */}
+          {next && <input type="hidden" name="next" value={next} />}
+
           <div>
             <label htmlFor="code" className="sr-only">
               Verification Code

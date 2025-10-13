@@ -269,14 +269,50 @@ export const updateUserPassword = async (
     return { message: `Error: ${error.message}`, error: true };
   }
 
-  const requestHeaders = headers();
-  const referer = requestHeaders.get("referer");
-  const requestUrl = new URL(referer ?? (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"));
-  const next = requestUrl.searchParams.get("next") || "/home";
+  revalidatePath("/", "layout");
+  redirect("/home");
+};
+
+export const verifyMfaAndCompleteLogin = async (formData: FormData) => {
+  const supabase = await createClient();
+  const code = formData.get("code") as string;
+  const next = formData.get("next") as string; // Get the next parameter from form
+
+  if (!code) {
+    const nextParam = next ? `?next=${encodeURIComponent(next)}` : '';
+    redirect(`/login/verify-2fa${nextParam}&error=Code is required.`);
+  }
+
+  const { data: factorData, error: factorError } =
+    await supabase.auth.mfa.listFactors();
+  if (factorError) {
+    const nextParam = next ? `&next=${encodeURIComponent(next)}` : '';
+    redirect(`/login/verify-2fa?error=${encodeURIComponent(factorError.message)}${nextParam}`);
+  }
+
+  const totpFactor = factorData?.all.find(
+    (f) => f.factor_type === "totp" && f.status === "verified"
+  );
+  if (!totpFactor) {
+    redirect(
+      "/login?error=No verified 2FA method found. Please contact support."
+    );
+  }
+
+  const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
+    factorId: totpFactor.id,
+    code,
+  });
+
+  if (verifyError) {
+    const nextParam = next ? `&next=${encodeURIComponent(next)}` : '';
+    redirect(`/login/verify-2fa?error=Invalid code. Please try again.${nextParam}`);
+  }
 
   revalidatePath("/", "layout");
-  revalidatePath(next, "page");
-  redirect(next);
+
+  // If there's a next parameter, redirect there; otherwise go to home
+  redirect(next || "/home");
 };
 
 export const updateUserProfileDetails = async (
@@ -498,42 +534,6 @@ export async function sendAppointmentReminders(): Promise<{
     errors: errorMessages,
   };
 }
-
-export const verifyMfaAndCompleteLogin = async (formData: FormData) => {
-  const supabase = await createClient();
-  const code = formData.get("code") as string;
-
-  if (!code) {
-    redirect("/login/verify-2fa?error=Code is required.");
-  }
-
-  const { data: factorData, error: factorError } =
-    await supabase.auth.mfa.listFactors();
-  if (factorError) {
-    redirect(`/login/verify-2fa?error=${factorError.message}`);
-  }
-
-  const totpFactor = factorData?.all.find(
-    (f) => f.factor_type === "totp" && f.status === "verified"
-  );
-  if (!totpFactor) {
-    redirect(
-      "/login?error=No verified 2FA method found. Please contact support."
-    );
-  }
-
-  const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
-    factorId: totpFactor.id,
-    code,
-  });
-
-  if (verifyError) {
-    redirect(`/login/verify-2fa?error=Invalid code. Please try again.`);
-  }
-
-  revalidatePath("/", "layout");
-  redirect("/home");
-};
 
 export const linkGoogleAccount = async () => {
   const supabase = await createClient();
