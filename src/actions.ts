@@ -268,11 +268,9 @@ export const updateUserPassword = async (
     return { message: `Error: ${error.message}`, error: true };
   }
 
+  // It's good practice to sign out all sessions when the password changes.
   await supabase.auth.signOut({ scope: "global" });
-
-  redirect(
-    "/login?message=Password updated successfully. Please log in again."
-  );
+  redirect("/login?message=Password updated successfully. Please log in again.");
 };
 
 export const updateUserProfileDetails = async (
@@ -2359,5 +2357,7 @@ export const getQueueStats = async (): Promise<
       success: false,
       error: error.message,
     };
+  }
+};
   }
 };
