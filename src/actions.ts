@@ -545,10 +545,22 @@ export const linkGoogleAccount = async () => {
     return { error: "You must be logged in to link an account." };
   }
 
+  // Fetch the user's profile to get their username
+  const { data: profile } = await supabase
+    .from("Profiles")
+    .select("username")
+    .eq("id", user.id)
+    .single();
+
+  const username = profile?.username || user.user_metadata?.username;
+  const redirectUrl = username
+    ? `${process.env.NEXT_PUBLIC_SITE_URL}/users/${username}`
+    : `${process.env.NEXT_PUBLIC_SITE_URL}/home`;
+
   const { data, error } = await supabase.auth.linkIdentity({
     provider: "google",
     options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/users/${user.user_metadata.username}`,
+      redirectTo: redirectUrl,
     },
   });
 
