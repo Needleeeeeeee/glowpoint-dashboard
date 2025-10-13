@@ -39,7 +39,7 @@ export function EnableMfaForm({
         setFactorId(result.data.factor_id);
         setSecret(result.data.secret);
         setUri(result.data.uri);
-        console.log('Enrollment data received:', result.data); // Debug
+        console.log('Enrollment data received:', result.data);
       }
       setIsLoading(false);
     }
@@ -76,8 +76,13 @@ export function EnableMfaForm({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-center">
-        <div dangerouslySetInnerHTML={{ __html: qrCode }} />
+      <div className="flex justify-center bg-white p-4 rounded-lg">
+        {/* Use img tag for data URI */}
+        <img
+          src={qrCode}
+          alt="QR Code for 2FA"
+          className="w-48 h-48"
+        />
       </div>
       <p className="text-sm text-muted-foreground text-center">
         Scan this with an authenticator app like Google Authenticator or Authy.
