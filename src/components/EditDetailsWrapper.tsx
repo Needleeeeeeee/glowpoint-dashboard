@@ -1,4 +1,3 @@
-import { createClient } from "@/utils/supabase/client";
 import {
   SheetContent,
   SheetDescription,
@@ -8,7 +7,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import EditDetailsForm from "./EditDetailsForm";
 import type { Factor } from "@supabase/auth-js";
-
+import { createClient } from "@/utils/supabase/server";
 type UserProfile = {
   id: string;
   username: string | null;
@@ -56,7 +55,10 @@ export default async function EditDetailsWrapper() {
         </SheetDescription>
       </SheetHeader>
       <ScrollArea className="h-[calc(100vh-8rem)]">
-        <EditDetailsForm userProfile={userProfile as UserProfile} factors={factors} />
+        <EditDetailsForm
+          userProfile={userProfile as UserProfile}
+          factors={factors}
+        />
       </ScrollArea>
     </SheetContent>
   );
