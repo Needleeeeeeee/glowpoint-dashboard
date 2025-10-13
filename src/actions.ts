@@ -778,18 +778,15 @@ export async function createService(prevState: any, formData: FormData) {
         dependsOn,
       } = categoryData;
 
-<<<<<<< HEAD
-      if (!type || !column || !label || !dbCategory || !categoryKey || sortOrder === undefined || sortOrder === null) {
-=======
       if (
         !type ||
         !column ||
         !label ||
         !dbCategory ||
         !categoryKey ||
-        sortOrder === undefined
+        sortOrder === undefined ||
+        sortOrder === null
       ) {
->>>>>>> c0f549a (mfa fixes)
         return {
           error:
             "Service was created, but category creation failed: Missing required category fields.",
