@@ -119,7 +119,6 @@ export function RecentActivity() {
       if (result.error) {
         toast.error("Failed to clear activity", { description: result.error });
       } else {
-        // Optimistically remove from UI
         if (id === "all") {
           setAllActivities([]);
           setFilteredActivities([]);

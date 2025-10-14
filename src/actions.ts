@@ -2352,22 +2352,41 @@ export const clearActivity = async (
     return { error: "Authentication required." };
   }
 
-  let query = supabase
-    .from("Appointments")
-    .update({ is_cleared: true })
-    .eq("claimed_by_id", user.id);
+  // Check if user is admin
+  const { data: profile } = await supabase
+    .from("Profiles")
+    .select("isAdmin")
+    .eq("id", user.id)
+    .single();
 
-  if (Array.isArray(ids)) {
-    query = query.in("id", ids);
+  if (!profile?.isAdmin) {
+    return { error: "Unauthorized: Admin access required." };
   }
 
-  const { error } = await query;
+  try {
+    let query = supabase
+      .from("Appointments")
+      .update({ is_cleared: true })
+      .eq("status", "assigned")
+      .eq("is_cleared", false);
 
-  if (error) {
-    console.error("Error clearing activity:", error);
-    return { error: "Failed to clear activity." };
+    // If specific IDs provided, only clear those
+    if (Array.isArray(ids) && ids.length > 0) {
+      query = query.in("id", ids);
+    }
+    // If "all", clear all non-cleared assigned appointments (no additional filter needed)
+
+    const { error } = await query;
+
+    if (error) {
+      console.error("Error clearing activity:", error);
+      return { error: "Failed to clear activity." };
+    }
+
+    revalidatePath("/home");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Unexpected error clearing activity:", error);
+    return { error: error.message || "An unexpected error occurred." };
   }
-
-  revalidatePath("/(app)/home", "page");
-  return { success: true };
 };
