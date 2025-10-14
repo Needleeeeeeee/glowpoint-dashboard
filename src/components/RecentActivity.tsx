@@ -179,7 +179,7 @@ export function RecentActivity() {
 
               return (
                 <div key={activity.id} className="group relative">
-                  <UserActivityPopover user={profile}>
+                  <UserActivityPopover user={profile} popoverContentProps={{ side: "bottom", align: "start" }}>
                     <Card className="hover:bg-muted/50 cursor-pointer transition-colors">
                       <CardContent className="p-3">
                         <div className="flex items-start gap-3">

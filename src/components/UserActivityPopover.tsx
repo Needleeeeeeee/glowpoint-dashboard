@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useState } from "react";
 import {
   Popover,
@@ -19,9 +20,10 @@ type UserProfile = {
 interface UserActivityPopoverProps {
   children: React.ReactNode;
   user: UserProfile;
+  popoverContentProps?: Partial<React.ComponentPropsWithoutRef<typeof PopoverContent>>;
 }
 
-export function UserActivityPopover({ children, user }: UserActivityPopoverProps) {
+export function UserActivityPopover({ children, user, popoverContentProps }: UserActivityPopoverProps) {
   const [open, setOpen] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
 
@@ -38,9 +40,10 @@ export function UserActivityPopover({ children, user }: UserActivityPopoverProps
       </PopoverTrigger>
       <PopoverContent
         className="w-72"
-        side={isMobile ? "top" : "right"}
-        align={isMobile ? "center" : "start"}
-        alignOffset={isMobile ? 0 : 10}
+        side={popoverContentProps?.side ?? (isMobile ? "top" : "right")}
+        align={popoverContentProps?.align ?? (isMobile ? "center" : "start")}
+        sideOffset={popoverContentProps?.sideOffset}
+        alignOffset={popoverContentProps?.alignOffset ?? (isMobile ? 0 : 10)}
       >
         <div className="flex items-center gap-4">
           <Avatar className="size-12">
