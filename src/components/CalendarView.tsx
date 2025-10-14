@@ -63,7 +63,7 @@ export function CalendarView({ appointments }: CalendarViewProps) {
   return (
     <div className="flex flex-col lg:flex-row gap-8">
           <div className="lg:w-3/5 rounded-md border bg-card w-full flex flex-col">
-            <div className="p-4 flex items-center justify-between border-b">
+            <div className="p-4 rounded-md flex items-center justify-between border-b">
               <Button variant="outline" size="icon" onClick={handlePrevMonth}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -85,7 +85,11 @@ export function CalendarView({ appointments }: CalendarViewProps) {
                 showOutsideDays={true}
                 fixedWeeks={true}
                 modifiers={{
-                  hasAppointment: daysWithAppointments,
+                  hasAppointment: (day) => {
+                    const hasAppt = daysWithAppointments.some(d => isSameDay(d, day));
+                    const isSelected = date ? isSameDay(day, date) : false;
+                    return hasAppt && !isSelected;
+                  },
                 }}
                 modifiersClassNames={{
                   hasAppointment: "bg-gradient-to-br from-rose-300 to-amber-300 text-gray-800 font-semibold hover:from-rose-400 hover:to-amber-400 scale-90 hover:scale-100 transition-all duration-200 relative",
