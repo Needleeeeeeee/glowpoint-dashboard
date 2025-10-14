@@ -174,12 +174,12 @@ function StatusUpdateActions({ payment, isAdmin, userId }: { payment: Payment, i
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "pending": return "bg-yellow-500/20 text-gray-200 border-yellow-300";
-      case "success": return "bg-green-500/20 text-gray-200 border-green-300";
-      case "failed": return "bg-red-500/20 text-gray-200 border-red-300";
-      case "assigned": return "bg-blue-500/20 text-gray-200 border-blue-300";
-      case "verified": return "bg-fuchsia-500/20 text-gray-200 border-fuchsia-300";
-      default: return "bg-gray-500/20 border-gray-300";
+      case "pending": return "bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border-yellow-300";
+      case "success": return "bg-green-500/20 text-green-700 dark:text-green-300 border-green-300";
+      case "failed": return "bg-red-500/20 text-red-700 dark:text-red-300 border-red-300";
+      case "assigned": return "bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-300";
+      case "verified": return "bg-fuchsia-500/20 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-300";
+      default: return "bg-gray-500/20 text-gray-800 dark:text-gray-300 border-gray-300";
     }
   };
 
