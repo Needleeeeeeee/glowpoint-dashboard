@@ -131,18 +131,6 @@ export function RecentActivity() {
     });
   };
 
-  if (loading) {
-    return <p className="text-sm text-muted-foreground mt-4">Loading activity...</p>;
-  }
-
-  if (error) {
-    return <p className="text-sm text-muted-foreground mt-4">{error}</p>;
-  }
-
-  if (filteredActivities.length === 0) {
-    return <p className="text-sm text-muted-foreground mt-4">No recent activity.</p>;
-  }
-
   return (
     <Card>
       <CardHeader>
@@ -151,57 +139,81 @@ export function RecentActivity() {
             <CardTitle>Recent Activity</CardTitle>
             <CardDescription>A feed of recent appointment claims.</CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={() => handleClear("all")} disabled={isPending}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleClear("all")}
+            disabled={isPending || allActivities.length === 0}
+          >
             Clear All
           </Button>
         </div>
         <ActivitySearch />
       </CardHeader>
-      <CardContent className="p-0">
-        <div className="space-y-4 p-6 pt-0">
-          {filteredActivities.map((activity) => {
-            const profile = Array.isArray(activity.Profiles) ? activity.Profiles[0] : activity.Profiles;
-            const username = profile?.username ?? 'An employee';
-            const customerName = activity.Name ?? 'a client';
-            const service = activity.claimed_service ?? 'a service';
-            const activityDate = new Date(activity.date_created);
+      <CardContent className="p-6">
+        {loading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Loading activity...</p>
+        ) : error ? (
+          <p className="text-sm text-muted-foreground text-center py-8">{error}</p>
+        ) : filteredActivities.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-sm text-muted-foreground">
+              {searchQuery || dateRange.from || dateRange.to
+                ? "No activities match your search criteria."
+                : "No recent activity."}
+            </p>
+            {(searchQuery || dateRange.from || dateRange.to) && allActivities.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Try adjusting your filters or search query.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredActivities.map((activity) => {
+              const profile = Array.isArray(activity.Profiles) ? activity.Profiles[0] : activity.Profiles;
+              const username = profile?.username ?? 'An employee';
+              const customerName = activity.Name ?? 'a client';
+              const service = activity.claimed_service ?? 'a service';
+              const activityDate = new Date(activity.date_created);
 
-            return (
-              <div key={activity.id} className="group relative">
-                <UserActivityPopover user={profile}>
-                  <Card className="hover:bg-muted/50 cursor-pointer transition-colors">
-                    <CardContent className="p-3">
-                      <div className="flex items-start gap-3">
-                        <Avatar className="size-9 border">
-                          <AvatarImage src={profile?.avatar_url ?? undefined} />
-                          <AvatarFallback>{username.charAt(0).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 text-sm">
-                          <p className="text-muted-foreground">
-                            <span className="font-semibold text-foreground">{username}</span> claimed an appointment for <span className="font-medium text-primary">{customerName}</span>.
-                          </p>
-                          <div className="text-xs text-muted-foreground mt-2 space-y-1">
-                            <p><strong>Service:</strong> <Badge variant="secondary">{service}</Badge></p>
-                            <p><strong>When:</strong> {format(activityDate, "MMM d, yyyy")} ({formatDistanceToNow(activityDate, { addSuffix: true })})</p>
+              return (
+                <div key={activity.id} className="group relative">
+                  <UserActivityPopover user={profile}>
+                    <Card className="hover:bg-muted/50 cursor-pointer transition-colors">
+                      <CardContent className="p-3">
+                        <div className="flex items-start gap-3">
+                          <Avatar className="size-9 border">
+                            <AvatarImage src={profile?.avatar_url ?? undefined} />
+                            <AvatarFallback>{username.charAt(0).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 text-sm">
+                            <p className="text-muted-foreground">
+                              <span className="font-semibold text-foreground">{username}</span> claimed an appointment for <span className="font-medium text-primary">{customerName}</span>.
+                            </p>
+                            <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                              <p><strong>Service:</strong> <Badge variant="secondary">{service}</Badge></p>
+                              <p><strong>When:</strong> {format(activityDate, "MMM d, yyyy")} ({formatDistanceToNow(activityDate, { addSuffix: true })})</p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </UserActivityPopover>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-1 right-1 size-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => handleClear(activity.id)}
-                  disabled={isPending}
-                >
-                  <X className="size-4" />
-                </Button>
-              </div>
-            );
-          })}
-        </div>
+                      </CardContent>
+                    </Card>
+                  </UserActivityPopover>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-1 right-1 size-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => handleClear(activity.id)}
+                    disabled={isPending}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
