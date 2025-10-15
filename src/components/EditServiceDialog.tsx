@@ -191,40 +191,40 @@ export function EditServiceDialog({
         return;
       }
 
-      // Handle service category logic
-      if (values.hasServiceCategory) {
-        if (values.type && values.column) {
-          const categoryData = {
-            // Always use the existing category's data if it's there
-            db_category: existingServiceCategory.db_category,
-            label: existingServiceCategory.label,
-            category_key: existingServiceCategory.category_key,
-            type: values.type,
-            column: values.column,
-            sort_order: values.sortOrder,
-            depends_on: values.dependsOn,
-          };
-
-          const categoryResult = await upsertServiceCategory(null, categoryData);
-
-          if (categoryResult?.error) {
-            toast.error("Service Category Save Failed", {
-              description: categoryResult.error,
-            });
-            setIsSubmitting(false);
-            return;
-          }
-        }
-      } else {
+      // If hasServiceCategory is now false, but one existed, try to delete it.
+      // This must happen *after* the service is updated to potentially remove its category link.
+      if (!values.hasServiceCategory && existingServiceCategory) {
         // If hasServiceCategory is false, but one existed, delete it.
-        if (existingServiceCategory) {
-          const deleteResult = await deleteServiceCategory(existingServiceCategory.id);
-          if (deleteResult?.error) {
-            toast.error("Failed to remove service category", {
-              description: deleteResult.error,
-            });
-            // Don't block the main success message for this
-          }
+        const deleteResult = await deleteServiceCategory(existingServiceCategory.id);
+        if (deleteResult?.error) {
+          // We show a warning here because the main service update was successful.
+          // The category might not be deletable if other services still use it.
+          toast.warning("Service updated, but category not removed", {
+            description: deleteResult.error,
+          });
+        }
+      }
+
+      // If hasServiceCategory is true, upsert the category data.
+      // This happens after the main service update to ensure consistency.
+      if (values.hasServiceCategory && values.type && values.column && existingServiceCategory) {
+        const categoryData = {
+          db_category: existingServiceCategory.db_category,
+          label: existingServiceCategory.label,
+          category_key: existingServiceCategory.category_key,
+          type: values.type,
+          column: values.column,
+          sort_order: values.sortOrder,
+          depends_on: values.dependsOn,
+        };
+
+        const categoryResult = await upsertServiceCategory(null, categoryData);
+
+        if (categoryResult?.error) {
+          toast.error("Service Category Save Failed", {
+            description: categoryResult.error,
+          });
+          // We don't return here because the main service update was successful.
         }
       }
 
