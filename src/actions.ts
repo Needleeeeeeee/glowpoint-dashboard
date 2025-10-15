@@ -748,7 +748,6 @@ export async function createService(prevState: any, formData: FormData) {
 
   let { service, category, price, newCategory, ...categoryData } = validatedFields.data;
 
-  // If a newCategory is provided, it means we're creating a new one.
   const isCreatingNewCategory = category === "other" && newCategory;
   if (isCreatingNewCategory) {
     category = newCategory!;
@@ -1377,6 +1376,7 @@ export async function updateServiceCategory(
   const serviceId = formData.get("serviceId") as string;
   const type = formData.get("type") as string;
   const column = formData.get("column") as string;
+  const sortOrder = formData.get("sortOrder") as string;
   const dependsOn = formData.get("dependsOn") as string;
 
   // Validate required fields
@@ -1402,6 +1402,7 @@ export async function updateServiceCategory(
     const updateData = {
       type,
       column,
+      sort_order: parseInt(sortOrder, 10),
       depends_on: dependsOn || null,
     };
 
