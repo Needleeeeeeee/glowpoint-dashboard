@@ -748,7 +748,9 @@ export async function createService(prevState: any, formData: FormData) {
 
   let { service, category, price, newCategory, ...categoryData } = validatedFields.data;
 
-  if (category === "other") {
+  // If a newCategory is provided, it means we're creating a new one.
+  const isCreatingNewCategory = category === "other" && newCategory;
+  if (isCreatingNewCategory) {
     category = newCategory!;
   }
 
@@ -771,7 +773,7 @@ export async function createService(prevState: any, formData: FormData) {
       };
     }
 
-    if (validatedFields.data.category === "other") {
+    if (isCreatingNewCategory) {
       const {
         type,
         column,
