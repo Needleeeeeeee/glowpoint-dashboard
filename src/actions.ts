@@ -728,15 +728,15 @@ export async function createService(prevState: any, formData: FormData) {
   const validatedFields = CreateServiceSchema.safeParse({
     service: formData.get("service"),
     price: formData.get("price"),
-    category: formData.get("category"),
-    newCategory: formData.get("newCategory"),
-    type: formData.get("type"),
-    column: formData.get("column"),
-    sortOrder: formData.get("sortOrder"),
-    label: formData.get("label"),
-    dbCategory: formData.get("dbCategory"),
-    categoryKey: formData.get("categoryKey"),
-    dependsOn: formData.get("dependsOn"),
+    category: formData.get("category") || "",
+    newCategory: formData.get("newCategory") || undefined,
+    type: formData.get("type") || undefined,
+    column: formData.get("column") || undefined,
+    sortOrder: formData.get("sortOrder") || undefined,
+    label: formData.get("label") || undefined,
+    dbCategory: formData.get("dbCategory") || undefined,
+    categoryKey: formData.get("categoryKey") || undefined,
+    dependsOn: formData.get("dependsOn") || undefined,
   });
 
   if (!validatedFields.success) {

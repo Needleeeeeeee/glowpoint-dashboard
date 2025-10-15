@@ -163,23 +163,17 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
 
   const onSubmit = (data: z.infer<typeof formSchema>) => {
     const formData = new FormData();
-    formData.append("service", data.service);
-    formData.append("price", String(data.price));
-
-    // Pass all service category data if enabled
-    if (data.category === "other") {
-      Object.keys(data).forEach(key => {
-        const value = data[key as keyof typeof data];
-        if (value !== undefined && value !== null) {
-          formData.append(key, String(value));
-        }
-      });
-    }
 
     const finalCategory =
       data.category === "other" ? data.newCategory! : data.category;
-    formData.append("category", finalCategory);
-    formData.append("newCategory", data.newCategory || "");
+
+    // Append all form data to formData object
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        formData.append(key, String(value));
+      }
+    });
+    formData.set("category", finalCategory); // Ensure the correct category is set
 
     startTransition(() => {
       formAction(formData);
