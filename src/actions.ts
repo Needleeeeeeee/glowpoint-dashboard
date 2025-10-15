@@ -1367,87 +1367,109 @@ export async function createServiceCategory(prevState: any, categoryData: any) {
   }
 }
 
-export async function updateServiceCategory(
-  prevState: any,
-  formData: FormData
-) {
+export async function deleteServiceCategory(categoryId: number) {
   const supabase = await createClient();
+  // 1. Verify user is an admin
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "Authentication required." };
+  }
+  const { data: profile } = await supabase
+    .from("Profiles")
+    .select("isAdmin")
+    .eq("id", user.id)
+    .single();
 
-  const serviceId = formData.get("serviceId") as string;
-  const type = formData.get("type") as string;
-  const column = formData.get("column") as string;
-  const sortOrder = formData.get("sortOrder") as string;
-  const dependsOn = formData.get("dependsOn") as string;
-
-  // Validate required fields
-  if (!serviceId || !type || !column) {
-    return { error: "Service ID, Type, and Column are required." };
+  if (!profile?.isAdmin) {
+    return { error: "Unauthorized: Admin access required." };
   }
 
-  // Validate type
-  if (!["ExclusiveDropdown", "AddOnDropdown"].includes(type)) {
+  if (!categoryId) {
+    return { error: "Category ID is required." };
+  }
+
+  // 2. Check if any services are using this category
+  const { data: category, error: categoryFetchError } = await supabase
+    .from("ServiceCategories")
+    .select("db_category")
+    .eq("id", categoryId)
+    .single();
+
+  if (categoryFetchError || !category) {
+    return { error: "Service category not found." };
+  }
+
+  const { data: services, error: servicesFetchError } = await supabase
+    .from("Services")
+    .select("id")
+    .eq("category", category.db_category);
+
+  if (servicesFetchError) {
+    return { error: "Failed to check for associated services." };
+  }
+
+  if (services && services.length > 0) {
     return {
-      error: "Type must be either ExclusiveDropdown or AddOnDropdown",
+      error: `Cannot delete category. It is currently used by ${services.length} service(s).`,
     };
   }
 
-  // Validate column
-  if (!["left", "right", "full"].includes(column)) {
-    return {
-      error: "Column must be left, right, or full",
-    };
+  // 3. Delete the category
+  const { error: deleteError } = await supabase
+    .from("ServiceCategories")
+    .delete()
+    .eq("id", categoryId);
+
+  if (deleteError) {
+    return { error: "Failed to delete service category: " + deleteError.message };
   }
-
-  try {
-    const updateData = {
-      type,
-      column,
-      sort_order: parseInt(sortOrder, 10),
-      depends_on: dependsOn || null,
-    };
-
-    const { error: updateError } = await supabase
-      .from("ServiceCategories")
-      .update(updateData)
-      .eq("id", serviceId);
-
-    if (updateError) {
-      return {
-        error: "Failed to update service category: " + updateError.message,
-      };
-    }
-
-    revalidatePath("/services");
-    return {
-      success: "Service category updated successfully",
-    };
-  } catch (error) {
-    return {
-      error: "An unexpected error occurred: " + (error as Error).message,
-    };
-  }
+  revalidatePath("/services");
+  return { success: "Service category deleted successfully." };
 }
 
-export async function deleteServiceCategory(serviceId: number) {
+export async function upsertServiceCategory(prevState: any, categoryData: any) {
   const supabase = await createClient();
-  try {
-    const { error } = await supabase
-      .from("ServiceCategories")
-      .delete()
-      .eq("id", serviceId);
 
-    if (error) {
-      return { error: "Failed to delete service category: " + error.message };
+  const {
+    type,
+    column,
+    sort_order,
+    label,
+    db_category,
+    category_key,
+    depends_on,
+  } = categoryData;
+
+  // Validate required fields
+  if (!type || !column || !label || !db_category || !category_key || sort_order === undefined) {
+    return {
+      error: "All category fields (Type, Column, Label, DB Category, Key, Sort Order) are required.",
+    };
+  }
+
+  try {
+    const upsertData = {
+      type,
+      column,
+      sort_order,
+      label,
+      db_category,
+      category_key,
+      depends_on: depends_on || null,
+    };
+
+    const { error: upsertError } = await supabase
+      .from("ServiceCategories")
+      .upsert(upsertData, { onConflict: "db_category" });
+
+    if (upsertError) {
+      return { error: "Failed to save service category: " + upsertError.message };
     }
 
     revalidatePath("/services");
-    return {
-      success: "Service category deleted successfully.",
-    };
+    return { success: "Service category saved successfully" };
   } catch (error) {
-    return {
-      error: "An unexpected error occurred: " + (error as Error).message,
-    };
+    return { error: "An unexpected error occurred: " + (error as Error).message };
   }
 }
 

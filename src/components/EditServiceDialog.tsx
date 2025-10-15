@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   updateService,
-  createServiceCategory,
-  updateServiceCategory,
+  upsertServiceCategory,
   deleteServiceCategory,
   getAvailableSortOrders,
   getServiceCategories,
@@ -149,7 +148,9 @@ export function EditServiceDialog({
     try {
       // Load existing service category
       const serviceCategories = await getServiceCategories();
-      const existingCategory = serviceCategories.find(cat => cat.id === service.id);
+      const existingCategory = serviceCategories.find(
+        (cat) => cat.db_category === service.category
+      );
 
       if (existingCategory) {
         setExistingServiceCategory(existingCategory);
@@ -193,31 +194,18 @@ export function EditServiceDialog({
       // Handle service category logic
       if (values.hasServiceCategory) {
         if (values.type && values.column) {
-          const categoryFormData = new FormData();
-          categoryFormData.append("serviceId", String(service.id));
-          categoryFormData.append("type", values.type);
-          categoryFormData.append("column", values.column);
-          categoryFormData.append("sortOrder", String(values.sortOrder));
-          categoryFormData.append("dependsOn", values.dependsOn || "");
+          const categoryData = {
+            // Use existing db_category or create a new one from the service's category name
+            db_category: existingServiceCategory?.db_category || values.category.toLowerCase().replace(/\s+/g, "_"),
+            label: existingServiceCategory?.label || values.category,
+            category_key: existingServiceCategory?.category_key || values.category.toLowerCase().split(" ")[0],
+            type: values.type,
+            column: values.column,
+            sort_order: values.sortOrder,
+            depends_on: values.dependsOn,
+          };
 
-          let categoryResult;
-          if (existingServiceCategory) {
-            // Update existing category
-            categoryResult = await updateServiceCategory(null, categoryFormData);
-          } else {
-            // Create new category
-            // createServiceCategory expects an object, not FormData
-            const newCategoryData = {
-              dbCategory: values.category.toLowerCase().replace(/\s+/g, '_'),
-              label: values.category,
-              categoryKey: values.category.toLowerCase().split(' ')[0],
-              type: values.type,
-              column: values.column,
-              sortOrder: values.sortOrder,
-              dependsOn: values.dependsOn
-            };
-            categoryResult = await createServiceCategory(null, newCategoryData);
-          }
+          const categoryResult = await upsertServiceCategory(null, categoryData);
 
           if (categoryResult?.error) {
             toast.error("Service Category Save Failed", {
@@ -230,7 +218,7 @@ export function EditServiceDialog({
       } else {
         // If hasServiceCategory is false, but one existed, delete it.
         if (existingServiceCategory) {
-          const deleteResult = await deleteServiceCategory(service.id);
+          const deleteResult = await deleteServiceCategory(existingServiceCategory.id);
           if (deleteResult?.error) {
             toast.error("Failed to remove service category", {
               description: deleteResult.error,

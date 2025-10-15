@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import CreateServiceForm from "@/components/CreateServiceForm";
 import { EditServiceDialog } from "@/components/EditServiceDialog";
+import { DeleteCategoryDialog } from "@/components/DeleteCategoryDialog";
 
 interface ServicesClientProps {
   services: Service[];
@@ -27,11 +28,14 @@ export default function ServicesClient({
   isAdmin,
 }: ServicesClientProps) {
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [isDeleteCategoryOpen, setIsDeleteCategoryOpen] = useState(false);
 
   const columns = getColumns(isAdmin, (service) => setEditingService(service));
 
   // This function will be called by the EditServiceDialog on successful update
-  const handleSuccess = () => {};
+  const handleSuccess = () => {
+    // You might want to re-fetch data here or use router.refresh()
+  };
 
   return (
     <div className="w-full px-6 py-10">
@@ -39,9 +43,12 @@ export default function ServicesClient({
         <h1 className="text-2xl font-bold">Services</h1>
         {isAdmin && (
           <Sheet>
-            <SheetTrigger asChild>
-              <Button>Create Service</Button>
-            </SheetTrigger>
+            <div className="flex gap-2">
+              <Button variant="destructive" onClick={() => setIsDeleteCategoryOpen(true)}>Delete Category</Button>
+              <SheetTrigger asChild>
+                <Button>Create Service</Button>
+              </SheetTrigger>
+            </div>
             <SheetContent>
               <SheetHeader>
                 <SheetTitle>Create New Service</SheetTitle>
@@ -62,6 +69,12 @@ export default function ServicesClient({
           onOpenChange={(open) => !open && setEditingService(null)}
           onSuccess={handleSuccess}
         />
+      )}
+      {isAdmin && (
+        <DeleteCategoryDialog
+          isOpen={isDeleteCategoryOpen}
+          onOpenChange={setIsDeleteCategoryOpen}
+          onSuccess={handleSuccess} />
       )}
     </div>
   );
