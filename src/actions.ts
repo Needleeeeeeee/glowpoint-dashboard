@@ -871,6 +871,51 @@ export const updateService = async (prevState: any, formData: FormData) => {
   return { success: "Service updated successfully!" };
 };
 
+export const deleteService = async (serviceId: number) => {
+  try {
+    if (!serviceId) {
+      return { error: "No service ID provided." };
+    }
+
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return { error: "Authentication required. Please log in." };
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("Profiles")
+      .select("isAdmin")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError || !profile?.isAdmin) {
+      return { error: "Insufficient permissions. Admin access required." };
+    }
+
+    const { error: deleteError } = await supabase
+      .from("Services")
+      .delete()
+      .eq("id", serviceId);
+
+    if (deleteError) {
+      return { error: `Delete failed: ${deleteError.message}` };
+    }
+
+    revalidatePath("/services");
+    return { success: "Service deleted successfully." };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error occurred";
+    return { error: `Server error: ${errorMessage}` };
+  }
+};
+
 export const deleteServices = async (serviceIds: number[]) => {
   try {
     if (!serviceIds || serviceIds.length === 0) {
@@ -890,7 +935,6 @@ export const deleteServices = async (serviceIds: number[]) => {
       return { error: "Authentication required. Please log in." };
     }
 
-    // Check admin privileges
     const { data: profile, error: profileError } = await supabase
       .from("Profiles")
       .select("isAdmin")
@@ -904,33 +948,6 @@ export const deleteServices = async (serviceIds: number[]) => {
 
     if (!profile?.isAdmin) {
       return { error: "Insufficient permissions. Admin access required." };
-    }
-
-    // Delete from ServiceCategories first to respect foreign key constraints if any
-    const { data: servicesToDelete, error: fetchError } = await supabase
-      .from("Services")
-      .select("category")
-      .in("id", serviceIds);
-
-    if (fetchError) {
-      return {
-        error: `Failed to fetch services for deletion: ${fetchError.message}`,
-      };
-    }
-
-    const categoriesToDelete = servicesToDelete.map((s) => s.category);
-
-    const { error: categoryDeleteError } = await supabase
-      .from("ServiceCategories")
-      .delete()
-      .in("db_category", categoriesToDelete);
-
-    if (categoryDeleteError) {
-      // Log the error but don't block service deletion, as the category might not exist.
-      console.warn(
-        "Could not delete service category, it might not exist:",
-        categoryDeleteError.message
-      );
     }
 
     const { error: deleteError } = await supabase

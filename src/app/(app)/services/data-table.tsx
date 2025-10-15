@@ -33,7 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { deleteServices } from "@/actions";
+import { deleteService, deleteServices } from "@/actions";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 
@@ -83,11 +83,17 @@ export function DataTable<TData extends { id: number }, TValue>({
 
   const handleDelete = () => {
     startDeleteTransition(async () => {
-      const idsToDelete = serviceToDelete
-        ? [serviceToDelete]
-        : table.getFilteredSelectedRowModel().rows.map((row) => row.original.id);
-
-      const result = await deleteServices(idsToDelete);
+      let result;
+      if (serviceToDelete) {
+        result = await deleteService(serviceToDelete);
+      } else {
+        const idsToDelete = table
+          .getFilteredSelectedRowModel()
+          .rows.map((row) => row.original.id);
+        if (idsToDelete.length > 0) {
+          result = await deleteServices(idsToDelete);
+        }
+      }
 
       if (result?.error) {
         toast.error(result.error);
