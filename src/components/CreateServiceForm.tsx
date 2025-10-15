@@ -45,7 +45,6 @@ const formSchema = z
       .transform((val) => val.replace(/<[^>]*>/g, "").trim())
       .optional(),
     // Service category options
-    hasServiceCategory: z.boolean().default(false),
     type: z.enum(["ExclusiveDropdown", "AddOnDropdown"]).optional(),
     column: z.enum(["left", "right", "full"]).optional(),
     sortOrder: z.coerce
@@ -77,14 +76,13 @@ const formSchema = z
   )
   .refine(
     (data) => {
-      if (data.hasServiceCategory) {
+      if (data.category === "other") {
         return data.type && data.column && data.sortOrder;
       }
       return true;
     },
     {
-      message:
-        "Type, column, and sort order are required when service category is enabled",
+      message: "Type, column, and sort order are required when creating a new service category.",
       path: ["type"],
     }
   );
@@ -112,7 +110,6 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
       price: 0,
       category: "",
       newCategory: "",
-      hasServiceCategory: false,
       type: undefined,
       column: undefined,
       sortOrder: undefined,
@@ -125,7 +122,6 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
 
   const watchedCategory = form.watch("category");
   const watchedColumn = form.watch("column");
-  const watchedHasServiceCategory = form.watch("hasServiceCategory");
 
   // Load available sort orders when component mounts
   useEffect(() => { loadAvailableSortOrders(); }, []);
@@ -169,10 +165,9 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
     const formData = new FormData();
     formData.append("service", data.service);
     formData.append("price", String(data.price));
-    formData.append("hasServiceCategory", String(data.hasServiceCategory));
 
     // Pass all service category data if enabled
-    if (data.hasServiceCategory) {
+    if (data.category === "other") {
       Object.keys(data).forEach(key => {
         const value = data[key as keyof typeof data];
         if (value !== undefined && value !== null) {
@@ -282,32 +277,7 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
             />
           )}
 
-          {/* Service Category Options */}
-          <FormField
-            control={form.control}
-            name="hasServiceCategory"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    disabled={isPending}
-                  />
-                </FormControl>
-                <div className="space-y-1 leading-none">
-                  <FormLabel>
-                    Enable Service Category Options
-                  </FormLabel>
-                  <FormDescription>
-                    Configure this service for dynamic dropdown display
-                  </FormDescription>
-                </div>
-              </FormItem>
-            )}
-          />
-
-          {watchedHasServiceCategory && (
+          {watchedCategory === "other" && (
             <>
               <FormField
                 control={form.control}

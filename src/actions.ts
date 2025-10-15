@@ -536,24 +536,41 @@ export async function sendAppointmentReminders(): Promise<{
 }
 
 
-export const signInWithGoogle = async () => {
+export const signInWithGoogle = async (
+  idToken: string,
+  accessToken: string
+) => {
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/home`,
-    },
-  });
+  const {
+    data: { user: googleUser },
+    error: tokenError,
+  } = await supabase.auth.getUser(accessToken);
 
-  if (error) {
-    console.error("Google sign-in error:", error);
-    return redirect("/login?message=Could not authenticate with Google");
+  if (tokenError || !googleUser?.email) {
+    console.error("Error getting user from Google token:", tokenError);
+    return { error: "Could not verify Google account." };
   }
 
-  if (data.url) {
-    // Redirect the user to the Google authentication page.
-    // This should be a server-side redirect.
-    redirect(data.url);
+
+  const { data: profile, error: profileError } = await supabase
+    .from("Profiles")
+    .select("id")
+    .eq("email", googleUser.email)
+    .single();
+
+  if (profileError || !profile) {
+    console.log(`No profile found for email: ${googleUser.email}`);
+    return { error: "This Google account is not registered. Please contact an administrator." };
+  }
+
+  const { error: signInError } = await supabase.auth.signInWithIdToken({
+    provider: "google",
+    token: idToken,
+  });
+
+  if (signInError) {
+    console.error("Supabase sign in with ID token error:", signInError);
+    return { error: "Could not sign in with Google." };
   }
 };
 
@@ -651,10 +668,8 @@ const CreateServiceSchema = z
     price: z.coerce
       .number()
       .min(0, { message: "Price must be a positive number." }),
-    category: z
-      .string()
-      .min(2, { message: "Category must be at least 2 characters." }),
-    hasServiceCategory: z.boolean(),
+    category: z.string().min(1, { message: "Category is required." }),
+    newCategory: z.string().optional(),
     type: z.string().optional(),
     column: z.string().optional(),
     sortOrder: z.coerce.number().optional(),
@@ -665,14 +680,26 @@ const CreateServiceSchema = z
   })
   .refine(
     (data) => {
-      if (data.hasServiceCategory) {
+      if (data.category === "other") {
+        return data.newCategory && data.newCategory.length >= 2;
+      }
+      return true;
+    },
+    {
+      message: "New category name must be at least 2 characters.",
+      path: ["newCategory"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.category === "other") {
         return data.label && data.dbCategory && data.categoryKey;
       }
       return true;
     },
     {
       message:
-        "Label, DB Category, and Category Key are required when service category is enabled",
+        "Label, DB Category, and Category Key are required when creating a new service category.",
     }
   );
 
@@ -702,7 +729,7 @@ export async function createService(prevState: any, formData: FormData) {
     service: formData.get("service"),
     price: formData.get("price"),
     category: formData.get("category"),
-    hasServiceCategory: formData.get("hasServiceCategory") === "true",
+    newCategory: formData.get("newCategory"),
     type: formData.get("type"),
     column: formData.get("column"),
     sortOrder: formData.get("sortOrder"),
@@ -713,17 +740,16 @@ export async function createService(prevState: any, formData: FormData) {
   });
 
   if (!validatedFields.success) {
-    return {
-      error:
-        "Invalid form data: " + validatedFields.error.flatten().fieldErrors,
-    };
+    const errors = validatedFields.error.flatten().fieldErrors;
+    // Properly format the error object into a string for the toast
+    const errorMessage = Object.entries(errors).map(([key, value]) => `${key}: ${value.join(', ')}`).join('; ');
+    return { error: `Invalid form data: ${errorMessage}` };
   }
 
-  let { service, category, price, hasServiceCategory, ...categoryData } =
-    validatedFields.data;
+  let { service, category, price, newCategory, ...categoryData } = validatedFields.data;
 
   if (category === "other") {
-    category = formData.get("newCategory") as string;
+    category = newCategory!;
   }
 
   try {
@@ -745,7 +771,7 @@ export async function createService(prevState: any, formData: FormData) {
       };
     }
 
-    if (hasServiceCategory) {
+    if (validatedFields.data.category === "other") {
       const {
         type,
         column,
