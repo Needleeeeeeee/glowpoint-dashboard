@@ -70,6 +70,7 @@ export function DeleteCategoryDialog({ isOpen, onOpenChange, onSuccess }: Delete
     } else {
       toast.success("Success", { description: result.success });
       onSuccess();
+      setSelectedCategoryId(null);
     }
 
     setIsDeleting(false);

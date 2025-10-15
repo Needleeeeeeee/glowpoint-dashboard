@@ -195,10 +195,10 @@ export function EditServiceDialog({
       if (values.hasServiceCategory) {
         if (values.type && values.column) {
           const categoryData = {
-            // Use existing db_category or create a new one from the service's category name
-            db_category: existingServiceCategory?.db_category || values.category.toLowerCase().replace(/\s+/g, "_"),
-            label: existingServiceCategory?.label || values.category,
-            category_key: existingServiceCategory?.category_key || values.category.toLowerCase().split(" ")[0],
+            // Always use the existing category's data if it's there
+            db_category: existingServiceCategory.db_category,
+            label: existingServiceCategory.label,
+            category_key: existingServiceCategory.category_key,
             type: values.type,
             column: values.column,
             sort_order: values.sortOrder,

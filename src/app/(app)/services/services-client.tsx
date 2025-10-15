@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { getColumns, Service } from "./columns";
 import { DataTable } from "./data-table";
 import { Button } from "@/components/ui/button";
@@ -28,13 +29,14 @@ export default function ServicesClient({
   isAdmin,
 }: ServicesClientProps) {
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const router = useRouter();
   const [isDeleteCategoryOpen, setIsDeleteCategoryOpen] = useState(false);
 
   const columns = getColumns(isAdmin, (service) => setEditingService(service));
 
   // This function will be called by the EditServiceDialog on successful update
   const handleSuccess = () => {
-    // You might want to re-fetch data here or use router.refresh()
+    router.refresh();
   };
 
   return (
