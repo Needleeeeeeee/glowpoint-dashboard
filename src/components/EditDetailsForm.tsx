@@ -88,7 +88,7 @@ export default function EditDetailsForm({ userProfile, factors }: EditDetailsFor
   const verifiedFactor = factors.find((f) => f.status === "verified");
 
   return (
-    <div className="space-y-6 pt-6 px-4">
+    <div className="p-4 space-y-6">
       <form ref={formRef} action={formAction} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="avatar">Profile Picture</Label>
