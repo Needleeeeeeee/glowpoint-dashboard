@@ -210,12 +210,15 @@ const LogInForm = () => {
         </div>
       </div>
 
-      <form action={signInWithGoogle}>
-        <Button variant="outline" className="w-full flex items-center gap-2">
-          <GoogleIcon />
-          Sign in with Google
-        </Button>
-      </form>
+      <Button
+        variant="outline"
+        className="w-full flex items-center gap-2"
+        onClick={() => signInWithGoogle()}
+        disabled={isPending}
+      >
+        <GoogleIcon />
+        Sign in with Google
+      </Button>
     </div>
   );
 };
