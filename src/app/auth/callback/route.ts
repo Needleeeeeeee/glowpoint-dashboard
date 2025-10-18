@@ -11,12 +11,8 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      // If `next` is provided, it's a password reset flow - redirect there
-      if (next) {
-        return NextResponse.redirect(`${origin}${next}`);
-      }
-      // Otherwise, it's a Google OAuth flow - redirect to home
-      return NextResponse.redirect(`${origin}/home`);
+      const redirectUrl = next ? `${origin}${next}` : `${origin}/home`;
+      return NextResponse.redirect(redirectUrl);
     }
   }
 
