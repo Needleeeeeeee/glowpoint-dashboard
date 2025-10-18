@@ -1557,18 +1557,24 @@ export const verifyAppointment = async (
     return { error: `Failed to update appointment: ${updateError.message}` };
   }
 
-  // Send immediate confirmation SMS
-  const confirmationSmsMessage = getSmsContent(
-    "confirmation",
-    updatedAppointment
-  );
-  const smsResult = await sendSms(
-    updatedAppointment.Phone,
-    confirmationSmsMessage
-  );
+  let smsResult: { success: boolean; error?: string } = { success: true };
+  if (updatedAppointment.Phone) {
+    // Send immediate confirmation SMS
+    const confirmationSmsMessage = getSmsContent(
+      "confirmation",
+      updatedAppointment
+    );
+    smsResult = await sendSms(
+      updatedAppointment.Phone,
+      confirmationSmsMessage
+    );
+  }
 
-  // Send immediate confirmation email
-  const emailResult = await sendBrevoEmail("confirmation", updatedAppointment);
+  let emailResult: { success: boolean; error?: string } = { success: true };
+  if (updatedAppointment.Email) {
+    // Send immediate confirmation email
+    emailResult = await sendBrevoEmail("confirmation", updatedAppointment);
+  }
 
   // Calculate reminder time (2 hours before appointment)
   const appointmentDateTime = new Date(
@@ -1583,22 +1589,26 @@ export const verifyAppointment = async (
   let scheduledEmailResult = { success: true };
 
   if (reminderDateTime > new Date()) {
-    // Schedule reminder SMS
-    const reminderSmsMessage = getSmsContent("reminder", updatedAppointment);
-    // Format for SMS API: "Y-m-d H:i" format
-    const smsSchedule = formatDateTimeForSMS(reminderDateTime);
-    scheduledSmsResult = await sendSms(
-      updatedAppointment.Phone,
-      reminderSmsMessage,
-      smsSchedule
-    );
+    if (updatedAppointment.Phone) {
+      // Schedule reminder SMS
+      const reminderSmsMessage = getSmsContent("reminder", updatedAppointment);
+      // Format for SMS API: "Y-m-d H:i" format
+      const smsSchedule = formatDateTimeForSMS(reminderDateTime);
+      scheduledSmsResult = await sendSms(
+        updatedAppointment.Phone,
+        reminderSmsMessage,
+        smsSchedule
+      );
+    }
 
-    // Schedule reminder email
-    scheduledEmailResult = await sendBrevoEmail(
-      "reminder",
-      updatedAppointment,
-      reminderDateTime.toISOString()
-    );
+    if (updatedAppointment.Email) {
+      // Schedule reminder email
+      scheduledEmailResult = await sendBrevoEmail(
+        "reminder",
+        updatedAppointment,
+        reminderDateTime.toISOString()
+      );
+    }
   }
 
   // Collect results
