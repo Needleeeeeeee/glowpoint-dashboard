@@ -86,7 +86,7 @@ const CreateUserForm = () => {
   };
 
   return (
-    <div className="grid gap-4 px-4">
+    <div className="grid gap-4 px-4 max-h-[70vh] overflow-y-auto">
       <Form {...form}>
         <form className="space-y-2" onSubmit={form.handleSubmit(onSubmit)}>
           <FormField

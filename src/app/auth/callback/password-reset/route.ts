@@ -9,6 +9,9 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
+    if (error) {
+      console.error("Code exchange error:", error);
+    }
     if (!error) {
       // On successful code exchange, redirect to the password update page.
       return NextResponse.redirect(`${origin}/update-password`);
