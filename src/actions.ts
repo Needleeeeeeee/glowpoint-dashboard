@@ -536,13 +536,12 @@ export async function sendAppointmentReminders(): Promise<{
 }
 
 export const signInWithGoogle = async () => {
-  const origin = headers().get("origin");
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${origin}/auth/callback`,
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
     },
   });
 
