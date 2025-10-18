@@ -535,43 +535,23 @@ export async function sendAppointmentReminders(): Promise<{
   };
 }
 
-
-export const signInWithGoogle = async (
-  idToken: string,
-  accessToken: string
-) => {
+export const signInWithGoogle = async () => {
+  const origin = headers().get("origin");
   const supabase = await createClient();
-  const {
-    data: { user: googleUser },
-    error: tokenError,
-  } = await supabase.auth.getUser(accessToken);
 
-  if (tokenError || !googleUser?.email) {
-    console.error("Error getting user from Google token:", tokenError);
-    return { error: "Could not verify Google account." };
-  }
-
-
-  const { data: profile, error: profileError } = await supabase
-    .from("Profiles")
-    .select("id")
-    .eq("email", googleUser.email)
-    .single();
-
-  if (profileError || !profile) {
-    console.log(`No profile found for email: ${googleUser.email}`);
-    return { error: "This Google account is not registered. Please contact an administrator." };
-  }
-
-  const { error: signInError } = await supabase.auth.signInWithIdToken({
+  const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    token: idToken,
+    options: {
+      redirectTo: `${origin}/auth/callback`,
+    },
   });
 
-  if (signInError) {
-    console.error("Supabase sign in with ID token error:", signInError);
-    return { error: "Could not sign in with Google." };
+  if (error) {
+    console.error("Google Sign-In Error:", error);
+    return redirect("/login?message=Could not authenticate with Google");
   }
+
+  return redirect(data.url);
 };
 
 export const createUserProfile = async (prevState: any, formData: FormData) => {
