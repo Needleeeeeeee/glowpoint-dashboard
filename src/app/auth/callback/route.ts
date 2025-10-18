@@ -11,14 +11,12 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      // password reset flow should NOT go through this callback.
-      // If `next` is missing, it's a sign something is wrong.
-      if (!next) {
-        return NextResponse.redirect(
-          `${origin}/login?message=Invalid callback URL. Please try the password reset process again.`
-        );
+      // If `next` is provided, it's a password reset flow - redirect there
+      if (next) {
+        return NextResponse.redirect(`${origin}${next}`);
       }
-      return NextResponse.redirect(`${origin}${next}`);
+      // Otherwise, it's a Google OAuth flow - redirect to home
+      return NextResponse.redirect(`${origin}/home`);
     }
   }
 
