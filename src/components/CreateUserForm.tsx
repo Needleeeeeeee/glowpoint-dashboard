@@ -40,15 +40,19 @@ const formSchema = z.object({
     .string()
     .min(2, { message: "Username must be at least 2 characters." })
     .transform((val) => sanitizeInput.username(val)),
-  email: z.string().min(1, { message: "Email is required." }).email({
-    message: "Invalid email address.",
-  }),
+  email: z
+    .string()
+    .email({ message: "Invalid email address." })
+    .min(1, { message: "Email is required." })
+    .transform((val) => val.toLowerCase().trim()), // Add this
   password: z
     .string()
     .min(6, { message: "Password must be at least 6 characters." }),
-  phone: z.string().refine((val) => val === "" || /^(09|\+639)\d{9}$/.test(val), {
-    message: "Invalid Philippine phone number format. Use +639... or 09...",
-  }),
+  phone: z
+    .string()
+    .refine((val) => val === "" || /^(09|\+639)\d{9}$/.test(val), {
+      message: "Invalid Philippine phone number format. Use +639... or 09...",
+    }),
   location: z.string().min(1, { message: "Please select a location." }),
   isAdmin: z.boolean().default(false),
 });
@@ -121,6 +125,7 @@ const CreateUserForm = () => {
                     placeholder="Enter email"
                     {...field}
                     disabled={isPending}
+                    autoComplete="email"
                   />
                 </FormControl>
                 <FormDescription>
@@ -165,9 +170,7 @@ const CreateUserForm = () => {
                     disabled={isPending}
                   />
                 </FormControl>
-                <FormDescription>
-                  The user's Phone Number.
-                </FormDescription>
+                <FormDescription>The user's Phone Number.</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -189,7 +192,9 @@ const CreateUserForm = () => {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="PH, Philippines">PH, Philippines</SelectItem>
+                    <SelectItem value="PH, Philippines">
+                      PH, Philippines
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <FormDescription>The user's location.</FormDescription>
