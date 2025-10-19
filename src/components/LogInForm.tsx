@@ -61,7 +61,6 @@ const sanitizeInput = {
     return str
       .replace(/<[^>]*>/g, '') // Strip HTML
       .trim()
-      .toLowerCase() // Convert to lowercase for consistency
       .replace(/[^\w@.-]/g, '') // Only allow word chars, @, dots, and hyphens
       .slice(0, 100); // Ensure max length
   },
