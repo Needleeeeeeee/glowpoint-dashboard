@@ -1208,7 +1208,7 @@ export const claimAppointment = async (
       status: "assigned",
     })
     .eq("id", appointmentId)
-    .eq("status", "verified")
+    .eq("status", "verified") // Correctly target 'verified' appointments
     .select()
     .single();
 
@@ -1268,7 +1268,7 @@ export const unclaimAppointment = async (appointmentId: string) => {
     .update({
       claimed_by_id: null,
       claimed_service: null,
-      status: "pending",
+      status: "verified", // Revert to 'verified' so it can be claimed again
     })
     .eq("id", appointmentId);
 

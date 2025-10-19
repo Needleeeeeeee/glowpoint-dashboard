@@ -197,7 +197,7 @@ function StatusUpdateActions({ payment, isAdmin, userId }: { payment: Payment, i
       </div>
 
       {/* Actions dropdown */}
-      {(isAdmin || (userId && (payment.status === 'verified' || payment.claimed_by_id === userId))) && (
+      {(isAdmin || (userId && (payment.status === 'verified' || payment.status === 'assigned'))) && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
