@@ -216,7 +216,7 @@ export const updateUserProfile = async (prevState: any, formData: FormData) => {
 
 export const requestPasswordReset = async (formData: FormData) => {
   const supabase = await createClient();
-  const email = formData.get("email") as string;
+  let email = formData.get("email") as string;
   email = email.toLowerCase().trim();
 
   if (!email) {
