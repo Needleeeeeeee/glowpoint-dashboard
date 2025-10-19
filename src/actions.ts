@@ -228,6 +228,12 @@ export const requestPasswordReset = async (formData: FormData) => {
   });
 
   if (error) {
+    console.error("Full error object:", error); // Log the complete error
+    console.error("Error code:", error.code);
+    console.error("Error message:", error.message);
+  }
+
+  if (error) {
     console.error("Password reset error:", error);
     redirect(
       `/forgot-password?message=Error: Could not send password reset link.`
@@ -279,15 +285,19 @@ export const verifyMfaAndCompleteLogin = async (formData: FormData) => {
   const next = formData.get("next") as string; // Get the next parameter from form
 
   if (!code) {
-    const nextParam = next ? `?next=${encodeURIComponent(next)}` : '';
+    const nextParam = next ? `?next=${encodeURIComponent(next)}` : "";
     redirect(`/login/verify-2fa${nextParam}&error=Code is required.`);
   }
 
   const { data: factorData, error: factorError } =
     await supabase.auth.mfa.listFactors();
   if (factorError) {
-    const nextParam = next ? `&next=${encodeURIComponent(next)}` : '';
-    redirect(`/login/verify-2fa?error=${encodeURIComponent(factorError.message)}${nextParam}`);
+    const nextParam = next ? `&next=${encodeURIComponent(next)}` : "";
+    redirect(
+      `/login/verify-2fa?error=${encodeURIComponent(
+        factorError.message
+      )}${nextParam}`
+    );
   }
 
   const totpFactor = factorData?.all.find(
@@ -305,8 +315,10 @@ export const verifyMfaAndCompleteLogin = async (formData: FormData) => {
   });
 
   if (verifyError) {
-    const nextParam = next ? `&next=${encodeURIComponent(next)}` : '';
-    redirect(`/login/verify-2fa?error=Invalid code. Please try again.${nextParam}`);
+    const nextParam = next ? `&next=${encodeURIComponent(next)}` : "";
+    redirect(
+      `/login/verify-2fa?error=Invalid code. Please try again.${nextParam}`
+    );
   }
 
   revalidatePath("/", "layout");
@@ -395,8 +407,8 @@ export const enrollMfa = async () => {
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.mfa.enroll({
-    factorType: 'totp',
-    issuer: 'Glowpoint',
+    factorType: "totp",
+    issuer: "Glowpoint",
   });
 
   if (error) {
@@ -721,11 +733,14 @@ export async function createService(prevState: any, formData: FormData) {
   if (!validatedFields.success) {
     const errors = validatedFields.error.flatten().fieldErrors;
     // Properly format the error object into a string for the toast
-    const errorMessage = Object.entries(errors).map(([key, value]) => `${key}: ${value.join(', ')}`).join('; ');
+    const errorMessage = Object.entries(errors)
+      .map(([key, value]) => `${key}: ${value.join(", ")}`)
+      .join("; ");
     return { error: `Invalid form data: ${errorMessage}` };
   }
 
-  let { service, category, price, newCategory, ...categoryData } = validatedFields.data;
+  let { service, category, price, newCategory, ...categoryData } =
+    validatedFields.data;
 
   const isCreatingNewCategory = category === "other" && newCategory;
   if (isCreatingNewCategory) {
@@ -1304,15 +1319,17 @@ export async function createServiceCategory(prevState: any, categoryData: any) {
       .limit(1)
       .single();
 
-    if (maxSortOrderError && maxSortOrderError.code !== 'PGRST116') { // PGRST116: no rows found
-      return { error: "Failed to determine sort order: " + maxSortOrderError.message };
+    if (maxSortOrderError && maxSortOrderError.code !== "PGRST116") {
+      // PGRST116: no rows found
+      return {
+        error: "Failed to determine sort order: " + maxSortOrderError.message,
+      };
     }
 
     const currentMax = maxSortOrder?.sort_order || 0;
     finalSortOrder = Math.ceil((currentMax + 1) / 10) * 10;
     if (finalSortOrder === 0) finalSortOrder = 10;
   }
-
 
   try {
     const insertData = {
@@ -1349,7 +1366,9 @@ export async function createServiceCategory(prevState: any, categoryData: any) {
 export async function deleteServiceCategory(categoryId: number) {
   const supabase = await createClient();
   // 1. Verify user is an admin
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
     return { error: "Authentication required." };
   }
@@ -1400,7 +1419,9 @@ export async function deleteServiceCategory(categoryId: number) {
     .eq("id", categoryId);
 
   if (deleteError) {
-    return { error: "Failed to delete service category: " + deleteError.message };
+    return {
+      error: "Failed to delete service category: " + deleteError.message,
+    };
   }
   revalidatePath("/services");
   return { success: "Service category deleted successfully." };
@@ -1420,9 +1441,17 @@ export async function upsertServiceCategory(prevState: any, categoryData: any) {
   } = categoryData;
 
   // Validate required fields
-  if (!type || !column || !label || !db_category || !category_key || sort_order === undefined) {
+  if (
+    !type ||
+    !column ||
+    !label ||
+    !db_category ||
+    !category_key ||
+    sort_order === undefined
+  ) {
     return {
-      error: "All category fields (Type, Column, Label, DB Category, Key, Sort Order) are required.",
+      error:
+        "All category fields (Type, Column, Label, DB Category, Key, Sort Order) are required.",
     };
   }
 
@@ -1442,13 +1471,17 @@ export async function upsertServiceCategory(prevState: any, categoryData: any) {
       .upsert(upsertData, { onConflict: "db_category" });
 
     if (upsertError) {
-      return { error: "Failed to save service category: " + upsertError.message };
+      return {
+        error: "Failed to save service category: " + upsertError.message,
+      };
     }
 
     revalidatePath("/services");
     return { success: "Service category saved successfully" };
   } catch (error) {
-    return { error: "An unexpected error occurred: " + (error as Error).message };
+    return {
+      error: "An unexpected error occurred: " + (error as Error).message,
+    };
   }
 }
 
@@ -1543,10 +1576,7 @@ export const verifyAppointment = async (
       "confirmation",
       updatedAppointment
     );
-    smsResult = await sendSms(
-      updatedAppointment.Phone,
-      confirmationSmsMessage
-    );
+    smsResult = await sendSms(updatedAppointment.Phone, confirmationSmsMessage);
   }
 
   let emailResult: { success: boolean; error?: string } = { success: true };

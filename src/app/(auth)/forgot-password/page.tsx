@@ -8,6 +8,7 @@ export default function ForgotPasswordPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
+
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="bg-primary-foreground rounded-3xl p-6 w-96">
