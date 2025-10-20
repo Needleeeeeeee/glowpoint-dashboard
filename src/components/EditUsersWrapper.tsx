@@ -5,6 +5,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { ScrollArea } from "./ui/scroll-area";
 
 type UserProfile = {
   id: string;
@@ -24,7 +25,9 @@ const EditUsersWrapper = async ({ userToEdit }: { userToEdit: UserProfile }) => 
           Make changes to the user profile here. Click update when you're done.
         </SheetDescription>
       </SheetHeader>
-      <EditUsers userProfile={userToEdit} />
+      <ScrollArea className="h-[calc(100vh-8rem)] pr-4">
+        <EditUsers userProfile={userToEdit} />
+      </ScrollArea>
     </SheetContent>
   );
 };

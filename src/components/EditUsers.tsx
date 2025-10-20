@@ -101,7 +101,7 @@ const EditUsers = ({ userProfile }: EditUsersProps) => {
 
   return (
     <Form {...form}>
-      <form className="space-y-8 pt-6" onSubmit={form.handleSubmit(onSubmit)}>
+      <form className="space-y-8 pt-6 px-3" onSubmit={form.handleSubmit(onSubmit)}>
         <FormField
           control={form.control}
           name="username"

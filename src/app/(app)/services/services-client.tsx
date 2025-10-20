@@ -1,5 +1,4 @@
 "use client";
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getColumns, Service } from "./columns";
@@ -13,7 +12,14 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import CreateServiceForm from "@/components/CreateServiceForm";
+import CreateServiceCategoryForm from "@/components/CreateServiceCategoryForm";
 import { EditServiceDialog } from "@/components/EditServiceDialog";
 import { DeleteCategoryDialog } from "@/components/DeleteCategoryDialog";
 
@@ -29,14 +35,15 @@ export default function ServicesClient({
   isAdmin,
 }: ServicesClientProps) {
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const router = useRouter();
   const [isDeleteCategoryOpen, setIsDeleteCategoryOpen] = useState(false);
-
   const columns = getColumns(isAdmin, (service) => setEditingService(service));
 
-  // This function will be called by the EditServiceDialog on successful update
+  // This function will be called by the forms on successful update
   const handleSuccess = () => {
     router.refresh();
+    setIsSheetOpen(false);
   };
 
   return (
@@ -44,21 +51,32 @@ export default function ServicesClient({
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Services</h1>
         {isAdmin && (
-          <Sheet>
+          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <div className="flex gap-2">
               <Button variant="destructive" onClick={() => setIsDeleteCategoryOpen(true)}>Delete Category</Button>
               <SheetTrigger asChild>
-                <Button>Create Service</Button>
+                <Button>Create Service / Service Category</Button>
               </SheetTrigger>
             </div>
-            <SheetContent>
+            <SheetContent className="w-full sm:max-w-md">
               <SheetHeader>
-                <SheetTitle>Create New Service</SheetTitle>
+                <SheetTitle>Create New Service / Service Category</SheetTitle>
                 <SheetDescription>
-                  Fill in the details to create a new service.
+                  Create a new Service or a new Service Category.
                 </SheetDescription>
               </SheetHeader>
-              <CreateServiceForm categories={categories} />
+              <Tabs defaultValue="service" className="mt-6 mx-3 mb-2">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="service">Service</TabsTrigger>
+                  <TabsTrigger value="category">Category</TabsTrigger>
+                </TabsList>
+                <TabsContent value="service" className="space-y-4">
+                  <CreateServiceForm categories={categories} />
+                </TabsContent>
+                <TabsContent value="category" className="space-y-4">
+                  <CreateServiceCategoryForm onSuccess={handleSuccess} />
+                </TabsContent>
+              </Tabs>
             </SheetContent>
           </Sheet>
         )}

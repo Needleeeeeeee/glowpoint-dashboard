@@ -202,7 +202,6 @@ export const updateUserProfile = async (prevState: any, formData: FormData) => {
 
   if (profileError) {
     console.error("Supabase profile update error:", profileError);
-    // Optionally, try to revert the auth email change here if possible
     return { error: `Failed to update profile: ${profileError.message}` };
   }
 
@@ -496,14 +495,11 @@ export async function sendAppointmentReminders(): Promise<{
 }> {
   const supabase = await createClient();
 
-  // Define the time window for reminders (e.g., 2 hours from now)
+
   const now = new Date();
   const reminderWindowStart = new Date(now.getTime() + 115 * 60 * 1000); // 1 hour 55 mins
   const reminderWindowEnd = new Date(now.getTime() + 125 * 60 * 1000); // 2 hours 5 mins
 
-  // Query for verified appointments within the reminder window
-  // We need to filter by date first, then combine date and time for a precise range.
-  // This covers appointments for today and tomorrow (in case the window crosses midnight).
   const today = now.toISOString().split("T")[0];
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
     .toISOString()
@@ -1364,9 +1360,23 @@ export async function createServiceCategory(prevState: any, categoryData: any) {
   }
 }
 
+export async function getExistingCategories() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("ServiceCategories")
+    .select("db_category")
+    .order("db_category");
+
+  if (error) {
+    console.error("Error fetching categories:", error);
+    return [];
+  }
+
+  return data.map(item => item.db_category);
+}
+
 export async function deleteServiceCategory(categoryId: number) {
   const supabase = await createClient();
-  // 1. Verify user is an admin
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -1386,8 +1396,6 @@ export async function deleteServiceCategory(categoryId: number) {
   if (!categoryId) {
     return { error: "Category ID is required." };
   }
-
-  // 2. Check if any services are using this category
   const { data: category, error: categoryFetchError } = await supabase
     .from("ServiceCategories")
     .select("db_category")
@@ -1413,7 +1421,6 @@ export async function deleteServiceCategory(categoryId: number) {
     };
   }
 
-  // 3. Delete the category
   const { error: deleteError } = await supabase
     .from("ServiceCategories")
     .delete()
@@ -1441,7 +1448,6 @@ export async function upsertServiceCategory(prevState: any, categoryData: any) {
     depends_on,
   } = categoryData;
 
-  // Validate required fields
   if (
     !type ||
     !column ||
