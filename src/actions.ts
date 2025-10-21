@@ -2498,3 +2498,40 @@ export const clearActivity = async (
     return { error: error.message || "An unexpected error occurred." };
   }
 };
+
+export async function clearFeedback(ids: string[] | "all") {
+  "use server";
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Authentication required." };
+  }
+
+  try {
+    let query = supabase
+      .from("Feedback")
+      .update({ is_cleared: true })
+      .eq("is_cleared", false);
+
+    if (Array.isArray(ids) && ids.length > 0) {
+      query = query.in("id", ids);
+    }
+
+    const { error } = await query;
+
+    if (error) {
+      console.error("Error clearing feedback:", error);
+      return { error: "Failed to clear feedback." };
+    }
+
+    revalidatePath("/home");
+    return { success: "All feedback has been cleared." };
+  } catch (error: any) {
+    console.error("Unexpected error clearing feedback:", error);
+    return { error: error.message || "An unexpected error occurred." };
+  }
+}
