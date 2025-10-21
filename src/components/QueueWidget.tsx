@@ -136,7 +136,7 @@ export const QueueWidget: React.FC = () => {
                       {item.email} | {item.phone || "No phone"}
                     </div>
                     <div className="text-xs text-gray-500">
-                      QR: {item.qr_code} | {item.user_id.substring(0, 10)}...
+                      QR: {item.qr_code}
                     </div>
                   </div>
                 </div>
