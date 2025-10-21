@@ -1,13 +1,12 @@
-import { requestPasswordReset } from "@/actions";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ForgotPasswordForm } from "@/components/forgot-password-form";
 import Link from "next/link";
 
-export default function ForgotPasswordPage({
+export default async function ForgotPasswordPage({
   searchParams,
 }: {
-  searchParams?: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  const params = await searchParams;
 
   return (
     <div className="min-h-screen flex items-center justify-center">
@@ -18,30 +17,7 @@ export default function ForgotPasswordPage({
         <p className="text-muted-foreground text-center text-sm mb-6">
           Enter your email to receive a password reset link.
         </p>
-        {searchParams?.message ? (
-          <div className="text-center p-4 mb-4 text-sm text-green-500 bg-green-500/10 rounded-md">
-            <p>{searchParams.message}</p>
-            <Link href="/login" className="font-bold underline mt-2 inline-block">
-              Back to Login
-            </Link>
-          </div>
-        ) : (
-          <form action={requestPasswordReset} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="sr-only">
-                Email
-              </label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="Enter your email"
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full">Send Reset Link</Button>
-          </form>
-        )}
+        <ForgotPasswordForm />
       </div>
     </div>
   );

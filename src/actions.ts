@@ -213,36 +213,50 @@ export const updateUserProfile = async (prevState: any, formData: FormData) => {
   return { success: "User profile updated successfully!" };
 };
 
-export const requestPasswordReset = async (formData: FormData) => {
-  const supabase = await createClient();
-  let email = formData.get("email") as string;
-  email = email.toLowerCase().trim();
+export const requestPasswordReset = async (
+  prevState: { error?: string; success?: string } | undefined,
+  formData: FormData
+) => {
+  try {
+    const supabase = await createClient();
+    let email = formData.get("email") as string;
 
-  if (!email) {
-    return { error: "Email is required." };
+    if (!email) {
+      return { error: "Email is required." };
+    }
+
+    email = email.toLowerCase().trim();
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return { error: "Invalid email format." };
+    }
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
+    if (!siteUrl) {
+      console.error("NEXT_PUBLIC_SITE_URL is not defined");
+      return { error: "Server configuration error." };
+    }
+
+    console.log("Attempting password reset for:", email);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${siteUrl}/auth/callback/password-reset`,
+    });
+
+    if (error) {
+      console.error("Password reset error:", error);
+      return { error: error.message || "Could not send password reset link." };
+    }
+
+    console.log("Password reset email sent successfully");
+
+    return { success: "Password reset link sent. Please check your email." };
+  } catch (err: any) {
+    console.error("Unexpected error in requestPasswordReset:", err);
+    return { error: "An unexpected error occurred. Please try again." };
   }
-
-  // Use the password-reset specific callback
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback/password-reset`,
-  });
-
-  if (error) {
-    console.error("Full error object:", error); // Log the complete error
-    console.error("Error code:", error.code);
-    console.error("Error message:", error.message);
-  }
-
-  if (error) {
-    console.error("Password reset error:", error);
-    redirect(
-      `/forgot-password?message=Error: Could not send password reset link.`
-    );
-  }
-
-  redirect(
-    "/forgot-password?message=Password reset link sent. Please check your email."
-  );
 };
 
 export const updateUserPassword = async (
