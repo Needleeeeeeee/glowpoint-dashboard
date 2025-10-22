@@ -25,9 +25,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetTrigger } from "@/components/ui/sheet";
 import { reactivateUser } from "@/actions";
-import EditUsers from "@/components/EditUsers";
+import EditUsersWrapper from "@/components/EditUsersWrapper";
 
 export const columns: ColumnDef<Users>[] = [
   {
@@ -130,8 +130,7 @@ export const columns: ColumnDef<Users>[] = [
 
       const handleReactivate = () => {
         startTransition(async () => {
-          const result = await reactivateUser(users.id); // This is already correct
-
+          const result = await reactivateUser(users.id);
           console.log(result);
         });
       };
@@ -164,12 +163,7 @@ export const columns: ColumnDef<Users>[] = [
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          <SheetContent>
-            <SheetHeader>
-              <SheetTitle>Edit {users.username}</SheetTitle>
-            </SheetHeader>
-            <EditUsers userProfile={users} />
-          </SheetContent>
+          <EditUsersWrapper userToEdit={users} />
         </Sheet>
       );
     },

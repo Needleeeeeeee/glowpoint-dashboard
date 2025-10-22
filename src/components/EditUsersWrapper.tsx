@@ -1,3 +1,5 @@
+"use client";
+
 import EditUsers from "./EditUsers";
 import {
   SheetContent,
@@ -5,7 +7,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ScrollArea } from "./ui/scroll-area";
 
 type UserProfile = {
   id: string;
@@ -16,18 +17,25 @@ type UserProfile = {
   isAdmin: boolean | null;
 };
 
-const EditUsersWrapper = async ({ userToEdit }: { userToEdit: UserProfile }) => {
+const EditUsersWrapper = ({ userToEdit }: { userToEdit: UserProfile }) => {
   return (
-    <SheetContent>
-      <SheetHeader>
-        <SheetTitle>Edit {userToEdit.username}</SheetTitle>
-        <SheetDescription>
-          Make changes to the user profile here. Click update when you're done.
-        </SheetDescription>
-      </SheetHeader>
-      <ScrollArea className="h-[calc(100vh-8rem)] pr-4">
-        <EditUsers userProfile={userToEdit} />
-      </ScrollArea>
+    <SheetContent className="p-0 flex flex-col h-full overflow-hidden">
+      <div className="p-6 pb-4 border-b flex-shrink-0">
+        <SheetHeader>
+          <SheetTitle className="text-xl font-bold">
+            Edit {userToEdit.username}
+          </SheetTitle>
+          <SheetDescription className="text-sm">
+            Make changes to the user profile here. Click update when you're done.
+          </SheetDescription>
+        </SheetHeader>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="px-6 pt-6">
+          <EditUsers userProfile={userToEdit} />
+        </div>
+      </div>
     </SheetContent>
   );
 };

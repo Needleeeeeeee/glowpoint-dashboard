@@ -35,14 +35,14 @@ export default function EditDetailsWrapper({
   }
 
   return (
-    <SheetContent>
-      <SheetHeader>
+    <SheetContent className="p-0">
+      <SheetHeader className="p-6">
         <SheetTitle>Edit Details</SheetTitle>
         <SheetDescription>
           Update your bio, profile picture, or connect accounts.
         </SheetDescription>
       </SheetHeader>
-      <ScrollArea className="h-[calc(100vh-8rem)]">
+      <ScrollArea className="h-[calc(100vh-8rem)] p-6">
         <EditDetailsForm
           userProfile={userProfile as UserProfile}
           factors={factors}
