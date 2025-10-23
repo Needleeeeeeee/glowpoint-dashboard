@@ -14,10 +14,11 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { login, signInWithGoogle } from "@/actions";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Button } from "./ui/button";
+import { Eye, EyeOff } from "lucide-react";
 
 const formSchema = z.object({
   email: z
@@ -105,6 +106,7 @@ function GoogleIcon() {
 const LogInForm = () => {
   const [state, formAction, isPending] = useActionState<any, FormData>(login, undefined);
   const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -173,18 +175,31 @@ const LogInForm = () => {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Password</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Enter password"
-                    {...field}
-                    type="password"
-                    disabled={isPending}
-                    onChange={(e) => {
-                      const sanitized = sanitizeInput.password(e.target.value);
-                      field.onChange(sanitized);
-                    }}
-                  />
-                </FormControl>
+                <div className="relative">
+                  <FormControl>
+                    <Input
+                      placeholder="Enter password"
+                      {...field}
+                      type={showPassword ? "text" : "password"}
+                      disabled={isPending}
+                      onChange={(e) => {
+                        const sanitized = sanitizeInput.password(e.target.value);
+                        field.onChange(sanitized);
+                      }}
+                      className="pr-10"
+                    />
+                  </FormControl>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute inset-y-0 right-0 flex items-center justify-center h-full w-10 text-muted-foreground"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                  </Button>
+                </div>
                 <FormDescription>Enter your password.</FormDescription>
                 <FormMessage />
               </FormItem>
@@ -209,15 +224,16 @@ const LogInForm = () => {
         </div>
       </div>
 
-      <Button
-        variant="outline"
-        className="w-full flex items-center gap-2"
-        onClick={() => signInWithGoogle()}
-        disabled={isPending}
-      >
-        <GoogleIcon />
-        Sign in with Google
-      </Button>
+      <form action={signInWithGoogle}>
+        <Button
+          variant="outline"
+          className="w-full flex items-center gap-2"
+          disabled={isPending}
+        >
+          <GoogleIcon />
+          Sign in with Google
+        </Button>
+      </form>
     </div>
   );
 };
