@@ -35,7 +35,8 @@ import { createClient } from "@/utils/supabase/server";
 import type { User as SupabaseUser } from "@supabase/auth-js";
 
 const AppSidebar = async ({ user }: { user: SupabaseUser | null }) => {
-  let profile: { username: string | null; isAdmin: boolean | null } | null = null;
+  let profile: { username: string | null; isAdmin: boolean | null } | null =
+    null;
 
   if (user) {
     const supabase = await createClient();
@@ -102,10 +103,10 @@ const AppSidebar = async ({ user }: { user: SupabaseUser | null }) => {
               )}
               <SidebarMenuItem key="Settings">
                 <SidebarMenuButton asChild>
-                    <Link href={`/users/${UserName}`}>
-                      <Settings />
-                      <span>Settings</span>
-                    </Link>
+                  <Link href={`/users/${UserName}`}>
+                    <Settings />
+                    <span>Settings</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
