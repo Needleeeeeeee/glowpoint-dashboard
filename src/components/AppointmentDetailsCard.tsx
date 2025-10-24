@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { format, isSameDay, parse, parseISO } from "date-fns";
 import type { Appointment } from "./CalendarView";
 import { Calendar, Clock, User, WandSparkles } from "lucide-react";
+import { useState } from "react";
 
 interface AppointmentDetailsCardProps {
   selectedDate: Date | undefined;
@@ -29,6 +30,20 @@ const parseServices = (servicesData: string | string[]): string[] => {
 };
 
 export function AppointmentDetailsCard({ selectedDate, appointments }: AppointmentDetailsCardProps) {
+  const [expandedAppointments, setExpandedAppointments] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (appointmentId: string) => {
+    setExpandedAppointments(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(appointmentId)) {
+        newSet.delete(appointmentId);
+      } else {
+        newSet.add(appointmentId);
+      }
+      return newSet;
+    });
+  };
+
   const appointmentsForSelectedDay = selectedDate
     ? appointments
         .filter((app) => isSameDay(parseISO(app.Date), selectedDate))
@@ -74,15 +89,20 @@ export function AppointmentDetailsCard({ selectedDate, appointments }: Appointme
           </div>
         ) : (
           <div className="space-y-6">
-              {appointmentsForSelectedDay.map((app) => (
+              {appointmentsForSelectedDay.map((app) => {
+                const services = parseServices(app.Services);
+                const isExpanded = expandedAppointments.has(app.id);
+                const hasMultipleServices = services.length > 1;
+
+                return (
                 <div
                   key={app.id}
-                  className="p-5 border rounded-xl bg-gradient-to-r from-card to-muted/30 shadow-sm hover:shadow-md transition-all duration-200 border-l-4 border-l-primary"
+                  className="p-5 border rounded-xl bg-gradient-to-r from-card to-muted/30 shadow-sm hover:shadow-md transition-all duration-200 border-l-4 border-l-primary overflow-hidden"
                 >
                   <div className="flex flex-wrap justify-between items-start gap-x-4 gap-y-2 mb-4">
-                    <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
+                    <div className="flex items-center gap-3 min-w-0 flex-shrink overflow-hidden">
                       <User className="h-5 w-5 text-primary flex-shrink-0" />
-                      <p className="font-semibold text-lg truncate">{app.Name || "Walk-in"}</p>
+                      <p className="font-semibold text-lg truncate min-w-0">{app.Name || "Walk-in"}</p>
                     </div>
                     <div className="flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-full flex-shrink-0">
                       <Clock className="h-4 w-4 text-primary flex-shrink-0" />
@@ -91,33 +111,44 @@ export function AppointmentDetailsCard({ selectedDate, appointments }: Appointme
                       </p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {parseServices(app.Services).map((service, index) => (
-                      <Badge
-                        key={index}
-                        variant="secondary"
-                        className="font-normal text-sm bg-secondary/70 hover:bg-secondary transition-colors px-3 py-1 flex-shrink-0"
-                      >
-                        {service}
-                      </Badge>
-                    ))}
-                  </div>
+
+                  {hasMultipleServices && !isExpanded ? (
+                    <div
+                      className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                      onClick={() => toggleExpanded(app.id)}
+                    >
+                      {services[0]} <span className="font-semibold">+{services.length - 1} more</span>
+                    </div>
+                  ) : (
+                    <div
+                      className="space-y-1"
+                      onClick={() => hasMultipleServices && toggleExpanded(app.id)}
+                      style={{ cursor: hasMultipleServices ? 'pointer' : 'default' }}
+                    >
+                      {services.map((service, index) => (
+                        <div key={index} className="text-sm text-muted-foreground">
+                          • {service}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {app.claimed_by_username && (
                     <div className="mt-3 pt-3 border-t border-border/50">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <User className="h-4 w-4" />
-                        <span>
+                        <User className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">
                           Claimed by <span className="font-semibold text-foreground">{app.claimed_by_username}</span>
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                        <WandSparkles className="h-4 w-4" />
-                        <span>Service: <span className="font-semibold text-foreground">{app.claimed_service}</span></span>
+                        <WandSparkles className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">Service: <span className="font-semibold text-foreground">{app.claimed_service}</span></span>
                       </div>
                     </div>
                   )}
                 </div>
-              ))}
+              )})}
           </div>
         )}
       </CardContent>
