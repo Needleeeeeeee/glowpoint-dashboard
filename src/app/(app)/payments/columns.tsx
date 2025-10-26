@@ -121,7 +121,7 @@ function StatusUpdateActions({ payment, isAdmin, userId }: { payment: Payment, i
   const [isPending, startTransition] = useTransition();
   const [currentStatus, setCurrentStatus] = useState(payment.status);
 
-  const handleStatusUpdate = async (newStatus: "pending" | "success" | "failed") => {
+  const handleStatusUpdate = async (newStatus: "pending" | "success" | "failed" | "verified") => {
     console.log("Payment object:", {
       id: payment.id,
       currentStatus: payment.status,
@@ -264,6 +264,15 @@ function StatusUpdateActions({ payment, isAdmin, userId }: { payment: Payment, i
                         <div className="w-2 h-2 rounded-full bg-red-500"></div>
                         Failed
                         {currentStatus === "failed" && <span className="text-xs text-muted-foreground">(current)</span>}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={isPending || currentStatus === "verified"}
+                        onClick={() => handleStatusUpdate("verified")}
+                        className="flex items-center gap-2"
+                      >
+                        <div className="w-2 h-2 rounded-full bg-fuchsia-500"></div>
+                        Verified
+                        {currentStatus === "verified" && <span className="text-xs text-muted-foreground">(current)</span>}
                       </DropdownMenuItem>
                     </DropdownMenuSubContent>
                   </DropdownMenuPortal>
