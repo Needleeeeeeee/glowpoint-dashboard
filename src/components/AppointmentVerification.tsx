@@ -40,6 +40,7 @@ import {
   verifyAppointment as verifyAppointmentAction,
   rejectAppointment as rejectAppointmentAction,
 } from "@/actions";
+import { PaymentIDPopover } from "./PaymentIDPopover";
 
 interface Appointment {
   id: string;
@@ -422,9 +423,7 @@ export function AppointmentVerification({
                 {/* Payment ID */}
                 <div>
                   <div className="text-xs font-medium mb-1">Payment ID:</div>
-                  <code className="text-xs bg-muted px-2 py-1 rounded break-all">
-                    {appointment.payment_id || "N/A"}
-                  </code>
+                  <PaymentIDPopover paymentId={appointment.payment_id} />
                 </div>
 
                 {/* Status & Actions */}
@@ -541,9 +540,9 @@ export function AppointmentVerification({
                       />
                     </TableCell>
                     <TableCell className="px-3 py-2">
-                      <code className="text-xs bg-muted px-2 py-1 rounded whitespace-nowrap block truncate max-w-[100px]">
-                        {appointment.payment_id || "N/A"}
-                      </code>
+                      <TableCell className="px-3 py-2">
+                        <PaymentIDPopover paymentId={appointment.payment_id} />
+                      </TableCell>
                     </TableCell>
                     <TableCell className="px-3 py-2">
                       {getStatusBadge(appointment.status)}
