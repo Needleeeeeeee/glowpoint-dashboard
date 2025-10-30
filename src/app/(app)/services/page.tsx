@@ -7,41 +7,39 @@ const getData = async (): Promise<{
   categories: string[];
 }> => {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("Services").select("*");
 
-  if (error) {
-    console.error("Error fetching services:", error);
+  // Fetch services
+  const { data: servicesData, error: servicesError } = await supabase.from("Services").select("*");
+
+  if (servicesError) {
+    console.error("Error fetching services:", servicesError);
     return { services: [], categories: [] };
   }
 
-  if (!data) {
+  // Fetch categories from ServiceCategories table
+  const { data: categoriesData, error: categoriesError } = await supabase
+    .from("ServiceCategories")
+    .select("db_category, label")
+    .order("sort_order");
+
+  if (categoriesError) {
+    console.error("Error fetching service categories:", categoriesError);
     return { services: [], categories: [] };
   }
 
-  const services: Service[] = data.map((service) => ({
+  const services: Service[] = (servicesData || []).map((service) => ({
     id: service.id,
     service: service.service ?? "N/A",
     category: service.category ?? "N/A",
     price: service.price ?? 0,
   }));
 
-  const categoryMap = new Map<string, string>();
-  services.forEach((s) => {
-    if (s.category && s.category !== "N/A") {
-      const lowerCaseCategory = s.category.toLowerCase();
-      if (!categoryMap.has(lowerCaseCategory)) {
-        // Store the original casing but use lowercase for uniqueness check
-        categoryMap.set(lowerCaseCategory, s.category);
-      }
-    }
-  });
-
-  const categories = Array.from(categoryMap.values()).filter(
-    (c) => c.toLowerCase() !== "other"
-  );
+  // Extract category names from ServiceCategories
+  const categories = (categoriesData || []).map(cat => cat.db_category);
 
   return { services, categories };
 };
+
 const ServicesPage = async () => {
   const { services, categories } = await getData();
   const supabase = await createClient();

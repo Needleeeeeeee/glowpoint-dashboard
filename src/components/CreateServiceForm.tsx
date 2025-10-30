@@ -45,7 +45,6 @@ interface CreateServiceFormProps {
 }
 
 const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
-  const uniqueCategories = [...new Set(categories)];
   const [state, formAction, isPending] = useActionState<any, FormData>(
     createService,
     undefined
@@ -81,7 +80,9 @@ const CreateServiceForm = ({ categories }: CreateServiceFormProps) => {
     } else if (state?.error) {
       toast.error("Creation Failed", { description: state.error });
     }
-  }, [state]);
+  }, [state, form]);
+
+  const uniqueCategories = [...new Set(categories)];
 
   return (
     <div className="grid gap-4 px-4 max-h-[70vh] overflow-y-auto">
