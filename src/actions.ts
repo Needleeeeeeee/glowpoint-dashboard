@@ -599,7 +599,7 @@ export const createUserProfile = async (prevState: any, formData: FormData) => {
   }
 
   // Get form data
-  const email = formData.get("email") as string;
+  const email = (formData.get("email") as string).toLowerCase().trim();
   const password = formData.get("password") as string;
   const username = formData.get("username") as string;
   const phone = formData.get("phone") as string;
@@ -625,11 +625,27 @@ export const createUserProfile = async (prevState: any, formData: FormData) => {
     }
   );
 
+  // Check if email already exists
+    const { data: existingUser, error: existingUserError } = await supabaseAdmin
+    .from("users")
+    .select("id")
+    .eq("email", email)
+    .single();
+  if (existingUser) {
+    return { error: "A user with this email already exists." };
+  }
+
   // Create user in Supabase Auth
   const { data: authData, error: authError } =
     await supabaseAdmin.auth.admin.createUser({
       email,
       password,
+      email_confirm: true, // Auto-confirm email
+      user_metadata: {
+        username,
+        phone,
+        location,
+      },
     });
 
   if (authError) {
@@ -641,24 +657,54 @@ export const createUserProfile = async (prevState: any, formData: FormData) => {
     return { error: "Failed to create user." };
   }
 
-  // Insert profile in 'Profiles' table
-  const { error: profileError } = await supabaseAdmin.from("Profiles").insert({
-    id: authData.user.id,
-    email: email,
-    username: username,
-    phone: phone,
-    location: location,
-    isAdmin: isAdmin,
-  });
+  // Insert profile in 'Profiles' table with retry logic
+  let retries = 3;
+  let profileError;
+
+  while (retries > 0) {
+    const { error } = await supabaseAdmin
+      .from("Profiles")
+      .update({
+        username: username,
+        phone: phone || null,
+        location: location || null,
+        isAdmin: isAdmin,
+        is_active: true,
+      })
+      .eq("id", authData.user.id);
+
+    if (!error) {
+      profileError = null;
+      break;
+    }
+
+    profileError = error;
+    retries--;
+
+    if (retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+    }
+  }
 
   if (profileError) {
     console.error("Supabase profile insert error:", profileError);
-    await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+
+    // Attempt to delete the auth user
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(
+      authData.user.id
+    );
+
+    if (deleteError) {
+      console.error("Failed to rollback auth user:", deleteError);
+      return {
+        error: `Profile creation failed and user cleanup failed. Orphaned user ID: ${authData.user.id}. Please delete manually.`,
+      };
+    }
+
     return { error: `Failed to create profile: ${profileError.message}` };
   }
 
   revalidatePath("/users");
-
   return { success: "User created successfully!" };
 };
 

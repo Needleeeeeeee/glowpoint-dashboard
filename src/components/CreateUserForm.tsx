@@ -21,17 +21,18 @@ import {
 } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { Button } from "./ui/button";
-import { useActionState, startTransition } from "react";
+import { useActionState, startTransition, useEffect } from "react";
 import { createUserProfile } from "@/actions";
 import { Checkbox } from "./ui/checkbox";
+import { toast } from "sonner";
 
 const sanitizeInput = {
   username: (str: string) => {
     return str
-      .replace(/<[^>]*>/g, "") // Strip HTML
+      .replace(/<[^>]*>/g, "")
       .trim()
-      .replace(/[^a-zA-Z0-9_-]/g, "") // Only allow safe characters
-      .slice(0, 50); // Ensure max length
+      .replace(/[^a-zA-Z0-9_-]/g, "")
+      .slice(0, 50);
   },
 };
 
@@ -44,7 +45,7 @@ const formSchema = z.object({
     .string()
     .email({ message: "Invalid email address." })
     .min(1, { message: "Email is required." })
-    .transform((val) => val.toLowerCase().trim()), // Add this
+    .transform((val) => val.toLowerCase().trim()),
   password: z
     .string()
     .min(6, { message: "Password must be at least 6 characters." }),
@@ -75,18 +76,49 @@ const CreateUserForm = () => {
     undefined
   );
 
-  const onSubmit = (data: z.infer<typeof formSchema>) => {
-    const formData = new FormData();
-    formData.append("username", data.username);
-    formData.append("email", data.email);
-    formData.append("password", data.password);
-    if (data.phone) formData.append("phone", data.phone);
-    if (data.location) formData.append("location", data.location);
-    if (data.isAdmin) formData.append("isAdmin", "on");
+  // Show toast notifications when state changes
+  useEffect(() => {
+    if (state?.error) {
+      toast.error("Creation Failed", {
+        description: state.error,
+      });
+    }
+    if (state?.success) {
+      toast.success("Success", {
+        description: state.success,
+      });
+      form.reset();
+    }
+  }, [state, form]);
 
-    startTransition(() => {
-      formAction(formData);
-    });
+  const onSubmit = async (data: z.infer<typeof formSchema>) => {
+    console.log("=== FORM SUBMISSION START ===");
+    console.log("Form data:", data);
+
+    try {
+      const formData = new FormData();
+      formData.append("username", data.username);
+      formData.append("email", data.email);
+      formData.append("password", data.password);
+      if (data.phone) formData.append("phone", data.phone);
+      if (data.location) formData.append("location", data.location);
+      if (data.isAdmin) formData.append("isAdmin", "on");
+
+      console.log("FormData entries:");
+      for (const [key, value] of formData.entries()) {
+        console.log(`  ${key}: ${value}`);
+      }
+
+      startTransition(() => {
+        console.log("Starting transition...");
+        formAction(formData);
+      });
+    } catch (error) {
+      console.error("Error in form submission:", error);
+      toast.error("Error", {
+        description: "Failed to submit form. Check console for details.",
+      });
+    }
   };
 
   return (
@@ -147,6 +179,7 @@ const CreateUserForm = () => {
                     placeholder="Enter password"
                     {...field}
                     disabled={isPending}
+                    autoComplete="new-password"
                   />
                 </FormControl>
                 <FormDescription>
@@ -161,7 +194,7 @@ const CreateUserForm = () => {
             name="phone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Phone</FormLabel>
+                <FormLabel>Phone (Optional)</FormLabel>
                 <FormControl>
                   <Input
                     type="tel"
@@ -224,15 +257,9 @@ const CreateUserForm = () => {
               </FormItem>
             )}
           />
-          <Button type="submit" disabled={isPending}>
+          <Button type="submit" disabled={isPending} className="w-full">
             {isPending ? "Creating..." : "Create User"}
           </Button>
-          {state?.error && (
-            <p className="text-sm text-destructive">{state.error}</p>
-          )}
-          {state?.success && (
-            <p className="text-sm text-green-500">{state.success}</p>
-          )}
         </form>
       </Form>
     </div>

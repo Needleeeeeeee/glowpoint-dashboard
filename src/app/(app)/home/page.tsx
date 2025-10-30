@@ -118,9 +118,7 @@ async function getDashboardData(
   const serviceNameMapping: { [key: string]: string } = {}; // Track original names
 
   appointments.forEach((app) => {
-    if (
-      app.status !== "failed"
-    ) {
+    if (app.status !== "failed") {
       let services: string[] = [];
 
       if (typeof app.Services === "string") {
@@ -159,7 +157,6 @@ async function getDashboardData(
       });
     }
   });
-
 
   const popularServicesData = Object.entries(serviceCounts)
     .map(([normalizedKey, count]) => ({
@@ -353,11 +350,7 @@ export default async function HomePage({
         </Card>
 
         {isAdmin && (
-          <Card className="lg:col-span-2">
-            <AppointmentVerification
-              initialAppointments={pendingAppointments}
-            />
-          </Card>
+          <AppointmentVerification initialAppointments={pendingAppointments} />
         )}
 
         {/* Revenue Bar Chart */}
