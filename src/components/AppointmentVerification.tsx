@@ -471,7 +471,6 @@ export function AppointmentVerification({
             </div>
           )}
         </div>
-
         {/* Desktop Table View */}
         <div className="hidden md:block overflow-auto max-h-[350px]">
           <div className="min-w-[800px]">
@@ -512,6 +511,7 @@ export function AppointmentVerification({
                     key={appointment.id}
                     className="h-12 hover:bg-muted/30"
                   >
+                    {/* Customer Column */}
                     <TableCell className="px-3 py-2">
                       <div className="min-w-0">
                         <div className="font-medium text-sm truncate">
@@ -525,6 +525,8 @@ export function AppointmentVerification({
                         </div>
                       </div>
                     </TableCell>
+
+                    {/* Date & Time Column */}
                     <TableCell className="px-3 py-2">
                       <div className="text-sm whitespace-nowrap">
                         {formatDate(appointment.Date)}
@@ -533,20 +535,26 @@ export function AppointmentVerification({
                         {formatTime(appointment.Time)}
                       </div>
                     </TableCell>
+
+                    {/* Services Column */}
                     <TableCell className="px-3 py-2">
                       <ServicesPopover
                         services={appointment.Services}
                         appointmentId={appointment.id}
                       />
                     </TableCell>
+
+                    {/* Payment ID Column - THIS SHOULD BE VISIBLE */}
                     <TableCell className="px-3 py-2">
-                      <TableCell className="px-3 py-2">
-                        <PaymentIDPopover paymentId={appointment.payment_id} />
-                      </TableCell>
+                      <PaymentIDPopover paymentId={appointment.payment_id} />
                     </TableCell>
+
+                    {/* Status Column - THIS SHOULD BE VISIBLE */}
                     <TableCell className="px-3 py-2">
                       {getStatusBadge(appointment.status)}
                     </TableCell>
+
+                    {/* Actions Column - THIS SHOULD BE VISIBLE */}
                     <TableCell className="px-3 py-2 text-right">
                       <div className="flex gap-2 justify-end">
                         {appointment.status === "pending" && (

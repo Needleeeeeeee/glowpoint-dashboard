@@ -24,7 +24,7 @@ interface AppLineChartProps {
 const chartConfig = {
   appointments: {
     label: "Appointments",
-    color: "var(--chart-1)",
+    color: "#3b82f6", // Blue
   },
 } satisfies ChartConfig;
 

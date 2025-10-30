@@ -58,16 +58,7 @@ const AppPieChart = ({ data: chartData, dateRangeText, config }: AppPieChartProp
   // Function to get color for a status
   const getStatusColor = (status: string) => {
     // First try to get from config
-    if (config[status]?.color) {
-      const configColor = config[status].color;
-      console.log(`Config color for ${status}:`, configColor);
-
-      // If it's an HSL CSS variable, fall back to our colors
-      if (configColor.startsWith('hsl(var(')) {
-        return STATUS_COLORS[status as keyof typeof STATUS_COLORS] || STATUS_COLORS.success;
-      }
-      return configColor;
-    }
+    if (config[status]?.color) return config[status].color;
 
     // Fallback to our color mapping
     return STATUS_COLORS[status as keyof typeof STATUS_COLORS] || STATUS_COLORS.success;

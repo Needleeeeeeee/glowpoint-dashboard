@@ -106,11 +106,11 @@ async function getDashboardData(
   );
 
   const appointmentTrendsConfig = {
-    success: { label: "Success", color: "var(--chart-2)" },
-    pending: { label: "Pending", color: "var(--chart-3)" },
-    failed: { label: "Failed", color: "var(--chart-5)" },
-    assigned: { label: "Assigned", color: "var(--chart-1)" },
-    verified: { label: "Verified", color: "var(--chart-4)" },
+    success: { label: "Success", color: "#10b981" }, // Green
+    pending: { label: "Pending", color: "#f59e0b" }, // Amber
+    failed: { label: "Failed", color: "#ef4444" },  // Red
+    assigned: { label: "Assigned", color: "#3b82f6" }, // Blue
+    verified: { label: "Verified", color: "#8b5cf6" }, // Violet
   } satisfies ChartConfig;
 
   // --- Data for Horizontal Bar Chart (Popular Services) ---
@@ -350,7 +350,9 @@ export default async function HomePage({
         </Card>
 
         {isAdmin && (
-          <AppointmentVerification initialAppointments={pendingAppointments} />
+            <Card className="lg:col-span-2">
+    <AppointmentVerification initialAppointments={pendingAppointments} />
+  </Card>
         )}
 
         {/* Revenue Bar Chart */}

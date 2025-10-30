@@ -11,11 +11,11 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 const chartConfig = {
   success: {
     label: "Success",
-    color: "var(--chart-2)",
+    color: "#10b981", // Green
   },
   pending: {
     label: "Pending",
-    color: "var(--chart-3)",
+    color: "#f59e0b", // Amber
   },
 } satisfies ChartConfig;
 
