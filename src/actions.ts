@@ -1495,18 +1495,18 @@ export async function deleteServiceCategory(categoryId: number) {
   return { success: "Service category deleted successfully." };
 }
 
-export async function upsertServiceCategory(prevState: any, categoryData: any) {
+export async function upsertServiceCategory(prevState: any, formData: FormData) {
   const supabase = await createClient();
 
-  const {
-    type,
-    column,
-    sort_order,
-    label,
-    db_category,
-    category_key,
-    depends_on,
-  } = categoryData;
+  const type = formData.get("type") as string;
+  const column = formData.get("column") as string;
+  const sort_order_str = formData.get("sortOrder") as string;
+  const label = formData.get("label") as string;
+  const db_category = formData.get("dbCategory") as string;
+  const category_key = formData.get("categoryKey") as string;
+  const depends_on = formData.get("dependsOn") as string;
+
+  const sort_order = parseInt(sort_order_str, 10);
 
   if (
     !type ||
@@ -1514,7 +1514,7 @@ export async function upsertServiceCategory(prevState: any, categoryData: any) {
     !label ||
     !db_category ||
     !category_key ||
-    sort_order === undefined
+    isNaN(sort_order)
   ) {
     return {
       error:
