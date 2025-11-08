@@ -10,6 +10,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { decryptData } from "@/utils/encryption";
 import CreateUserForm from "@/components/CreateUserForm";
 
 const getProfiles = async (): Promise<Users[]> => {
@@ -33,13 +34,13 @@ const getProfiles = async (): Promise<Users[]> => {
   const profiles: Users[] = data
     .filter((profile) => profile.id !== user?.id) // Exclude the current user
     .map((profile) => {
-      const phone = profile.phone ?? "N/A";
+      const phone = profile.phone ? decryptData(profile.phone) : "N/A";
       return {
         id: profile.id,
         username: profile.username ?? "N/A",
-        email: profile.email ?? "N/A",
+        email: profile.email ? decryptData(profile.email) : "N/A",
         phone: phone.startsWith("+63") ? `0${phone.substring(3)}` : phone,
-        location: profile.location ?? "N/A",
+        location: profile.location ? decryptData(profile.location) : "N/A",
         isAdmin: profile.isAdmin,
         is_active: profile.is_active,
       };

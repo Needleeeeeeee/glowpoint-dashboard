@@ -26,6 +26,7 @@ import { TopServicesFilter } from "@/components/TopServicesFilter";
 import { ActivitySearch } from "@/components/ActivitySearch";
 import { AppointmentVerification } from "@/components/AppointmentVerification";
 import { QueueWidget } from "@/components/QueueWidget";
+import { decryptData } from "@/utils/encryption"; // Already imported
 
 async function getDashboardData(
   params: { from?: string; to?: string },
@@ -90,11 +91,23 @@ async function getDashboardData(
   appointments.forEach((app) => {
     const dayKey = format(new Date(app.Date), "yyyy-MM-dd");
     if (statusCountsByDay[dayKey]) {
-      if (app.status === "success") statusCountsByDay[dayKey].success++;
-      if (app.status === "pending") statusCountsByDay[dayKey].pending++;
-      if (app.status === "failed") statusCountsByDay[dayKey].failed++;
-      if (app.status === "assigned") statusCountsByDay[dayKey].assigned++;
-      if (app.status === "verified") statusCountsByDay[dayKey].verified++;
+      switch (app.status) {
+        case "success":
+          statusCountsByDay[dayKey].success++;
+          break;
+        case "pending":
+          statusCountsByDay[dayKey].pending++;
+          break;
+        case "failed":
+          statusCountsByDay[dayKey].failed++;
+          break;
+        case "assigned":
+          statusCountsByDay[dayKey].assigned++;
+          break;
+        case "verified":
+          statusCountsByDay[dayKey].verified++;
+          break;
+      }
     }
   });
 
@@ -108,7 +121,7 @@ async function getDashboardData(
   const appointmentTrendsConfig = {
     success: { label: "Success", color: "#10b981" }, // Green
     pending: { label: "Pending", color: "#f59e0b" }, // Amber
-    failed: { label: "Failed", color: "#ef4444" },  // Red
+    failed: { label: "Failed", color: "#ef4444" }, // Red
     assigned: { label: "Assigned", color: "#3b82f6" }, // Blue
     verified: { label: "Verified", color: "#8b5cf6" }, // Violet
   } satisfies ChartConfig;
@@ -240,6 +253,7 @@ async function getDashboardData(
     popularServicesConfig,
   };
 }
+
 async function getPendingAppointments() {
   const supabase = await createClient();
 
@@ -255,7 +269,14 @@ async function getPendingAppointments() {
     return [];
   }
 
-  return appointments || [];
+  if (appointments) {
+    return (appointments || []).map((apt) => ({
+      ...apt,
+      Phone: apt.Phone ? decryptData(apt.Phone) : apt.Phone,
+      Email: apt.Email ? decryptData(apt.Email) : apt.Email,
+    }));
+  }
+  return [];
 }
 
 export default async function HomePage({
@@ -291,14 +312,17 @@ export default async function HomePage({
     dateRangeText,
     appointmentTrendsConfig,
     popularServicesConfig,
-  } = await getDashboardData({ from, to });
+  } = await getDashboardData({ from, to }, isAdmin);
 
   const topServicesCount = topServices ? parseInt(topServices, 10) : 5;
   const filteredPopularServices = popularServicesData.slice(
     0,
     topServicesCount
   );
+
+  // Pending appointments are now decrypted in getPendingAppointments()
   const pendingAppointments = await getPendingAppointments();
+
   return (
     <div className="space-y-4 md:space-y-6 py-4 md:py-6 px-3 md:px-4 lg:px-6 w-full max-w-[100vw] mx-auto overflow-x-hidden">
       {/* Header Section */}
@@ -350,9 +374,11 @@ export default async function HomePage({
         </Card>
 
         {isAdmin && (
-            <Card className="lg:col-span-2">
-    <AppointmentVerification initialAppointments={pendingAppointments} />
-  </Card>
+          <Card className="lg:col-span-2">
+            <AppointmentVerification
+              initialAppointments={pendingAppointments}
+            />
+          </Card>
         )}
 
         {/* Revenue Bar Chart */}

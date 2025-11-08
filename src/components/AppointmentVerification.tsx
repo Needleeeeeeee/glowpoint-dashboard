@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Loader2,
   CheckCircle,
@@ -39,8 +38,10 @@ import {
 import {
   verifyAppointment as verifyAppointmentAction,
   rejectAppointment as rejectAppointmentAction,
+  fetchPendingAppointments,
 } from "@/actions";
 import { PaymentIDPopover } from "./PaymentIDPopover";
+
 
 interface Appointment {
   id: string;
@@ -112,18 +113,20 @@ export function AppointmentVerification({
   const fetchAppointments = useCallback(async () => {
     startTransition(async () => {
       try {
-        const { data, error } = await supabase
-          .from("Appointments")
-          .select("*")
-          .eq("status", "pending")
-          .order("date_created", { ascending: sortOrder === "asc" })
-          .limit(50);
+        // Use server action instead of direct database call
+        const result = await fetchPendingAppointments();
 
-        if (error) throw error;
-        const normalizedAppointments = (data || []).map((appointment) => ({
-          ...appointment,
-          Services: normalizeServices(appointment.Services),
-        }));
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
+        // Data is already decrypted from the server
+        const normalizedAppointments = (result.data || []).map(
+          (appointment) => ({
+            ...appointment,
+            Services: normalizeServices(appointment.Services),
+          })
+        );
 
         setAppointments(normalizedAppointments);
       } catch (error) {
@@ -131,7 +134,7 @@ export function AppointmentVerification({
         toast.error("Failed to load appointments");
       }
     });
-  }, [supabase, sortOrder]);
+  }, [sortOrder]);
 
   useEffect(() => {
     fetchAppointments();

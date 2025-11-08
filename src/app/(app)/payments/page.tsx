@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { Payment, getColumns } from "./columns";
 import { PaymentsClient } from "./payments-client";
+import { decryptData } from "@/utils/encryption";
 
 const getData = async (): Promise<Payment[]> => {
   const parseServicesString = (services: unknown): string[] => {
@@ -30,10 +31,10 @@ const getData = async (): Promise<Payment[]> => {
   const payments: Payment[] = data.map((payment) => ({
     id: payment.id,
     username: payment.Name ?? "N/A",
-    email: payment.Email ?? "N/A",
-    phone: payment.Phone ?? "N/A",
-    date:payment.Date ?? "N/A",
-    time:payment.Time ?? "N/A",
+    email: decryptData(payment.Email ?? "N/A"),
+    phone: decryptData(payment.Phone ?? "N/A"),
+    date: payment.Date ?? "N/A",
+    time: payment.Time ?? "N/A",
     services: parseServicesString(payment.Services),
     amount: payment.Total,
     status: payment.status,

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import EditUsersWrapper from "@/components/EditUsersWrapper";
 import { createClient } from "@/utils/supabase/server";
+import { decryptData } from "@/utils/encryption";
 import EditDetailsButton from "@/components/EditDetailsButton";
 
 export default async function SingleUserPage({
@@ -52,6 +53,14 @@ export default async function SingleUserPage({
   // An admin can edit any profile, or a user can edit their own.
   const canEdit = isOwnProfile || isCurrentUserAdmin;
 
+  // Decrypt sensitive data for display
+  const decryptedProfile = {
+    ...viewedUserProfile,
+    email: viewedUserProfile.email ? decryptData(viewedUserProfile.email) : null,
+    phone: viewedUserProfile.phone ? decryptData(viewedUserProfile.phone) : null,
+    location: viewedUserProfile.location ? decryptData(viewedUserProfile.location) : null,
+  };
+
   return (
     <div className="min-h-screen p-4">
       <div className="mt-4 flex flex-col xl:flex-row gap-8 items-stretch min-h-[calc(100vh-6rem)]">
@@ -66,7 +75,7 @@ export default async function SingleUserPage({
                   <SheetTrigger asChild>
                     <Button>Edit User</Button>
                   </SheetTrigger>
-                  <EditUsersWrapper userToEdit={viewedUserProfile} />
+                  <EditUsersWrapper userToEdit={decryptedProfile} />
                 </Sheet>
               )}
             </div>
@@ -76,7 +85,7 @@ export default async function SingleUserPage({
                   Username:
                 </span>
                 <span className="text-base md:text-lg xl:text-xl">
-                  {viewedUserProfile.username}
+                  {decryptedProfile.username}
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -84,7 +93,7 @@ export default async function SingleUserPage({
                   Email:
                 </span>
                 <span className="text-base md:text-lg xl:text-xl break-all">
-                  {viewedUserProfile.email}
+                  {decryptedProfile.email}
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -92,7 +101,7 @@ export default async function SingleUserPage({
                   Phone:
                 </span>
                 <span className="text-base md:text-lg xl:text-xl">
-                  {viewedUserProfile.phone}
+                  {decryptedProfile.phone}
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -100,7 +109,7 @@ export default async function SingleUserPage({
                   Location:
                 </span>
                 <span className="text-base md:text-lg xl:text-xl">
-                  {viewedUserProfile.location}
+                  {decryptedProfile.location}
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -108,7 +117,7 @@ export default async function SingleUserPage({
                   Role:
                 </span>
                 <Badge className="text-sm md:text-base xl:text-lg px-3 py-1">
-                  {viewedUserProfile.isAdmin ? "Admin" : "Employee"}
+                  {decryptedProfile.isAdmin ? "Admin" : "Employee"}
                 </Badge>
               </div>
             </div>
@@ -119,19 +128,17 @@ export default async function SingleUserPage({
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <Avatar className="size-16 md:size-20 xl:size-24">
-                  <AvatarImage
-                    src={viewedUserProfile.avatar_url ?? undefined}
-                  />
+                  <AvatarImage src={decryptedProfile.avatar_url ?? undefined} />
                   <AvatarFallback className="text-lg md:text-xl xl:text-2xl">
-                    {viewedUserProfile.username?.charAt(0).toUpperCase() ?? "U"}
+                    {decryptedProfile.username?.charAt(0).toUpperCase() ?? "U"}
                   </AvatarFallback>
                 </Avatar>
                 <h1 className="font-semibold text-2xl md:text-3xl xl:text-4xl">
-                  {viewedUserProfile.username}
+                  {decryptedProfile.username}
                 </h1>
               </div>
               {canEdit && (
-                <EditDetailsButton userProfile={viewedUserProfile} factors={factors} />
+                <EditDetailsButton userProfile={decryptedProfile} factors={factors} />
               )}
             </div>
             <div className="flex-1 flex items-center justify-center relative pt-12">
@@ -143,7 +150,7 @@ export default async function SingleUserPage({
                   <span className="absolute -left-2 -top-2 select-none font-serif text-6xl text-muted-foreground/20">
                     "
                   </span>
-                  {viewedUserProfile.bio}
+                  {decryptedProfile.bio}
                   <span className="absolute -bottom-6 -right-2 select-none font-serif text-6xl text-muted-foreground/20">
                     "
                   </span>

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { decryptData, encryptData } from "./utils/encryption";
 
 export const login = async (
   prevState: { error: undefined | string },
@@ -188,7 +189,7 @@ export const updateUserProfile = async (prevState: any, formData: FormData) => {
     .from("Profiles")
     .update({
       username: newUsername,
-      email: newEmail,
+      email: encryptData(newEmail),
       phone: newPhone,
       location: newLocation,
     })
@@ -666,7 +667,7 @@ export const createUserProfile = async (prevState: any, formData: FormData) => {
       .from("Profiles")
       .update({
         username: username,
-        phone: phone || null,
+        phone: phone ? encryptData(phone) : null,
         location: location || null,
         isAdmin: isAdmin,
         is_active: true,
@@ -2187,10 +2188,16 @@ export const getAdminQueueState = async (): Promise<
     if (queueResponse.error) throw queueResponse.error;
     if (settingsResponse.error) throw settingsResponse.error;
 
+    const decryptedQueue = (queueResponse.data || []).map((entry) => ({
+      ...entry,
+      email: entry.email ? decryptData(entry.email) : entry.email,
+      phone: entry.phone ? decryptData(entry.phone) : entry.phone,
+    }));
+
     return {
       success: true,
       data: {
-        queue: queueResponse.data || [],
+        queue: decryptedQueue,
         currentServing: settingsResponse.data?.current_serving || 0,
       },
     };
@@ -2249,18 +2256,18 @@ export const advanceQueue = async (): Promise<
 
       const appointmentDataForNotif = {
         Name: profile?.username || "Valued Customer",
-        Email: userToServe.email,
-        Phone: userToServe.phone,
+        Email: userToServe.email ? decryptData(userToServe.email) : "",
+        Phone: userToServe.phone ? decryptData(userToServe.phone) : "",
         position: userToServe.position,
       };
 
       // Send notifications
-      if (userToServe.email) {
+      if (appointmentDataForNotif.Email) {
         await sendBrevoEmail("now_serving", appointmentDataForNotif);
       }
-      if (userToServe.phone) {
+      if (appointmentDataForNotif.Phone) {
         await sendSms(
-          userToServe.phone,
+          appointmentDataForNotif.Phone,
           getSmsContent("now_serving", appointmentDataForNotif)
         );
       }
@@ -2367,19 +2374,19 @@ export const notifyNextInQueue = async (): Promise<ActionResult<null>> => {
 
     const notificationData = {
       Name: profile?.username || "Valued Customer",
-      Email: nextUser.email,
-      Phone: nextUser.phone,
+      Email: nextUser.email ? decryptData(nextUser.email) : "",
+      Phone: nextUser.phone ? decryptData(nextUser.phone) : "",
       position: nextUser.position,
     };
 
-    if (nextUser.phone) {
+    if (notificationData.Phone) {
       await sendSms(
-        nextUser.phone,
+        notificationData.Phone,
         getSmsContent("now_serving", notificationData)
       );
     }
 
-    if (nextUser.email) {
+    if (notificationData.Email) {
       await sendBrevoEmail("now_serving", notificationData);
     }
 
@@ -2580,4 +2587,234 @@ export async function clearFeedback(ids: string[] | "all") {
     console.error("Unexpected error clearing feedback:", error);
     return { error: error.message || "An unexpected error occurred." };
   }
+}
+
+export async function migrateToEncryptedData() {
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  );
+
+  const { data: profiles, error } = await supabaseAdmin
+    .from("Profiles")
+    .select("id, phone, location, email");
+
+  if (error) {
+    console.error("Error fetching profiles:", error);
+    return { error: "Failed to fetch profiles for migration." };
+  }
+
+  if (!profiles) {
+    return { success: "No profiles found to migrate." };
+  }
+
+  let updatedCount = 0;
+  const errors = [];
+
+  for (const profile of profiles) {
+    const { id, phone, location, email } = profile;
+    let needsUpdate = false;
+    const updatePayload: { phone?: string; location?: string ; email?:string} = {};
+
+    // Check phone
+    if (phone && decryptData(phone) === phone) {
+      // If decrypting returns the original value, it's unencrypted
+      updatePayload.phone = encryptData(phone);
+      needsUpdate = true;
+    }
+
+    // Check location
+    if (location && decryptData(location) === location) {
+      updatePayload.location = encryptData(location);
+      needsUpdate = true;
+    }
+
+    // Check email
+    if (profile.email && decryptData(profile.email) === profile.email) {
+      updatePayload.email = encryptData(profile.email);
+      needsUpdate = true;
+    }
+
+    if (needsUpdate) {
+      const { error: updateError } = await supabaseAdmin
+        .from("Profiles")
+        .update(updatePayload)
+        .eq("id", id);
+
+      if (updateError) {
+        console.error(`Failed to update profile ${id}:`, updateError);
+        errors.push({ id, message: updateError.message });
+      } else {
+        updatedCount++;
+      }
+    }
+  }
+
+  return {
+    success: `Migration complete. Updated ${updatedCount} profiles.`,
+    errors,
+  };
+}
+
+export async function migrateAppointmentsToEncryptedData() {
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  );
+
+  const { data: appointments, error } = await supabaseAdmin
+    .from("Appointments")
+    .select("id, Phone, Email");
+
+  if (error) {
+    console.error("Error fetching appointments:", error);
+    return { error: "Failed to fetch appointments for migration." };
+  }
+
+  if (!appointments) {
+    return { success: "No appointments found to migrate." };
+  }
+
+  let updatedCount = 0;
+  const errors = [];
+
+  for (const appointment of appointments) {
+    const { id, Phone, Email } = appointment;
+    let needsUpdate = false;
+    const updatePayload: { Phone?: string; Email?: string } = {};
+
+    // Check Phone
+    if (Phone && decryptData(Phone) === Phone) {
+      updatePayload.Phone = encryptData(Phone);
+      needsUpdate = true;
+    }
+
+    // Check Email
+    if (Email && decryptData(Email) === Email) {
+      updatePayload.Email = encryptData(Email);
+      needsUpdate = true;
+    }
+
+    if (needsUpdate) {
+      const { error: updateError } = await supabaseAdmin
+        .from("Appointments")
+        .update(updatePayload)
+        .eq("id", id);
+
+      if (updateError) {
+        console.error(`Failed to update appointment ${id}:`, updateError);
+        errors.push({ id, message: updateError.message });
+      } else {
+        updatedCount++;
+      }
+    }
+  }
+
+  return {
+    success: `Migration complete. Updated ${updatedCount} appointments.`,
+    errors,
+  };
+}
+
+export async function migrateQueueToEncryptedData() {
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  );
+
+  const { data: queueEntries, error } = await supabaseAdmin
+    .from("queue_entries")
+    .select("id, phone, email");
+
+  if (error) {
+    console.error("Error fetching queue entries:", error);
+    return { error: "Failed to fetch queue entries for migration." };
+  }
+
+  if (!queueEntries) {
+    return { success: "No queue entries found to migrate." };
+  }
+
+  let updatedCount = 0;
+  const errors = [];
+
+  for (const entry of queueEntries) {
+    const { id, phone, email } = entry;
+    let needsUpdate = false;
+    const updatePayload: { phone?: string; email?: string } = {};
+
+    // Check phone
+    if (phone && decryptData(phone) === phone) {
+      updatePayload.phone = encryptData(phone);
+      needsUpdate = true;
+    }
+
+    // Check email
+    if (email && decryptData(email) === email) {
+      updatePayload.email = encryptData(email);
+      needsUpdate = true;
+    }
+
+    if (needsUpdate) {
+      const { error: updateError } = await supabaseAdmin
+        .from("queue_entries")
+        .update(updatePayload)
+        .eq("id", id);
+
+      if (updateError) {
+        console.error(`Failed to update queue entry ${id}:`, updateError);
+        errors.push({ id, message: updateError.message });
+      } else {
+        updatedCount++;
+      }
+    }
+  }
+
+  return {
+    success: `Migration complete. Updated ${updatedCount} queue entries.`,
+    errors,
+  };
+}
+
+export async function fetchPendingAppointments() {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("Appointments")
+    .select("*")
+    .eq("status", "pending")
+    .order("date_created", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error("Error fetching appointments:", error);
+    return { data: null, error: error.message };
+  }
+
+  // Decrypt sensitive data on the server
+  const decryptedAppointments = (data || []).map((appointment) => ({
+    ...appointment,
+    Phone: appointment.Phone ? decryptData(appointment.Phone) : appointment.Phone,
+    Email: appointment.Email ? decryptData(appointment.Email) : appointment.Email,
+  }));
+
+  return { data: decryptedAppointments, error: null };
 }
